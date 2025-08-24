@@ -1,8 +1,6 @@
 "use client"
 
-// Avoid static prerender on this page due to client-only hooks like useSearchParams
-export const dynamic = "force-dynamic"
-export const revalidate = false
+// Client page; segment config is defined in server layout.tsx for this route
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
