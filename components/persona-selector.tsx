@@ -7,10 +7,11 @@ import { PERSONAS } from "@/lib/data"
 
 interface PersonaSelectorProps {
   selectedPersona: Persona | null
-  onPersonaSelect: (persona: Persona) => void
+  onSelect: (persona: Persona) => void
+  personas: Persona[]
 }
 
-export function PersonaSelector({ selectedPersona, onPersonaSelect }: PersonaSelectorProps) {
+export function PersonaSelector({ selectedPersona, onSelect, personas }: PersonaSelectorProps) {
   return (
     <div className="space-y-6">
       <div className="text-center">
@@ -19,13 +20,13 @@ export function PersonaSelector({ selectedPersona, onPersonaSelect }: PersonaSel
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
-        {Object.entries(PERSONAS).map(([key, persona]) => (
+        {personas.map((persona) => (
           <Card
-            key={key}
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              selectedPersona === key ? "ring-2 ring-primary border-primary" : ""
+            key={persona.id}
+            className={`selection-card cursor-pointer transition-all duration-300 shadow-modern border-white ${
+              selectedPersona?.id === persona.id ? "selected ring-2 ring-emerald-500 scale-[1.01]" : "bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-800 hover:shadow-lg hover:scale-[1.02]"
             }`}
-            onClick={() => onPersonaSelect(key as Persona)}
+            onClick={() => onSelect(persona)}
           >
             <CardHeader className="pb-3">
               <div className="flex items-center space-x-3">
@@ -36,6 +37,11 @@ export function PersonaSelector({ selectedPersona, onPersonaSelect }: PersonaSel
                     {persona.name.toLowerCase()}
                   </Badge>
                 </div>
+                {selectedPersona?.id === persona.id && (
+                  <span className="ml-auto inline-flex w-5 h-5 rounded-full bg-emerald-500 items-center justify-center animate-scale-in">
+                    <span className="w-2 h-2 bg-white rounded-full" />
+                  </span>
+                )}
               </div>
             </CardHeader>
             <CardContent>

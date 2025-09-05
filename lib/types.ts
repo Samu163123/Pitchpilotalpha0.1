@@ -22,15 +22,28 @@ export interface Product {
   description: string
 }
 
+export interface CallType {
+  id: string
+  name: string
+  category: "stage" | "style" | "process"
+  description: string
+  goal: string
+  aiInstructions: string
+  difficulty: "easy" | "medium" | "hard"
+}
+
 export interface Scenario {
   product: Product
   persona: Persona
   difficulty: Difficulty
+  callType?: CallType
   brief: {
     background: string
     pains: string[]
     mindset: string
   }
+  // Optional max duration for the call in seconds (null/omitted = unlimited)
+  timeLimitSec?: number | null
 }
 
 export interface TranscriptSegment {

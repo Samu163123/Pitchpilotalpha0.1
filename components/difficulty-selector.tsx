@@ -9,10 +9,11 @@ import { DIFFICULTIES } from "@/lib/data"
 
 interface DifficultySelectorProps {
   selectedDifficulty: Difficulty | null
-  onDifficultySelect: (difficulty: Difficulty) => void
+  onSelect: (difficulty: Difficulty) => void
+  difficulties: Difficulty[]
 }
 
-export function DifficultySelector({ selectedDifficulty, onDifficultySelect }: DifficultySelectorProps) {
+export function DifficultySelector({ selectedDifficulty, onSelect, difficulties }: DifficultySelectorProps) {
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case "easy":
@@ -34,19 +35,19 @@ export function DifficultySelector({ selectedDifficulty, onDifficultySelect }: D
       </div>
 
       <div className="grid gap-4 max-w-2xl mx-auto">
-        {Object.entries(DIFFICULTIES).map(([key, difficulty]) => (
+        {difficulties.map((difficulty) => (
           <Card
-            key={key}
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              selectedDifficulty === key ? "ring-2 ring-primary border-primary" : ""
+            key={difficulty.id}
+            className={`selection-card cursor-pointer transition-all duration-300 shadow-modern border-white ${
+              selectedDifficulty?.id === difficulty.id ? "selected ring-2 ring-emerald-500 scale-[1.01]" : "bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-800 hover:shadow-lg hover:scale-[1.02]"
             }`}
-            onClick={() => onDifficultySelect(key as Difficulty)}
+            onClick={() => onSelect(difficulty)}
           >
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <CardTitle className="text-lg">{difficulty.name}</CardTitle>
-                  <Badge className={getDifficultyColor(key)}>{key}</Badge>
+                  <Badge className={getDifficultyColor(difficulty.level)}>{difficulty.level}</Badge>
                 </div>
                 <TooltipProvider>
                   <Tooltip>
@@ -55,12 +56,7 @@ export function DifficultySelector({ selectedDifficulty, onDifficultySelect }: D
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="max-w-xs">
-                        {key === "easy" &&
-                          "Perfect for beginners. The buyer will be cooperative with minimal objections."}
-                        {key === "medium" &&
-                          "Good for intermediate sellers. Expect realistic objections and mixed responses."}
-                        {key === "hard" &&
-                          "For experienced sellers. The buyer will be challenging with frequent pushback."}
+                        {difficulty.description}
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -68,9 +64,9 @@ export function DifficultySelector({ selectedDifficulty, onDifficultySelect }: D
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">{difficulty.description}</p>
-              <div className="mt-3 flex items-center space-x-2">
-                <span className="text-sm font-medium">Score multiplier:</span>
+              <p className="text-sm text-muted-foreground mb-3">{difficulty.description}</p>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Score Multiplier</span>
                 <Badge variant="outline">{difficulty.multiplier}x</Badge>
               </div>
             </CardContent>

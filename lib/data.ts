@@ -161,3 +161,138 @@ export const COACH_HINTS = [
   "Create urgency with a compelling reason to act now.",
   "Use social proof: mention similar customers who've had success.",
 ]
+
+export type CallType = {
+  id: string
+  name: string
+  category: "stage" | "style" | "process"
+  description: string
+  goal: string
+  aiInstructions: string
+  difficulty: "easy" | "medium" | "hard"
+}
+
+export const CALL_TYPES: CallType[] = [
+  // Based on Sales Stage
+  {
+    id: "cold-call",
+    name: "Cold Call",
+    category: "stage",
+    description: "Reaching out to someone who hasn't interacted with you before.",
+    goal: "Generate interest and set up a meeting.",
+    aiInstructions: "Be skeptical and guarded. Ask 'Who is this?' and 'How did you get my number?' Show minimal initial interest. Require strong value proposition to continue listening.",
+    difficulty: "hard"
+  },
+  {
+    id: "warm-call",
+    name: "Warm Call",
+    category: "stage", 
+    description: "Contacting someone who has shown interest (e.g., downloaded a guide, signed up for a trial).",
+    goal: "Build on prior engagement and move them down the funnel.",
+    aiInstructions: "Show moderate interest since you've engaged before. Ask relevant questions about your previous interaction. Be more receptive but still need convincing.",
+    difficulty: "medium"
+  },
+  {
+    id: "follow-up-call",
+    name: "Follow-Up Call",
+    category: "stage",
+    description: "After a meeting, demo, or email exchange.",
+    goal: "Address objections, provide more info, or push toward the next step.",
+    aiInstructions: "Reference previous conversations. Have specific objections ready based on what was discussed. Show you've been thinking about the solution.",
+    difficulty: "medium"
+  },
+  {
+    id: "closing-call",
+    name: "Closing Call",
+    category: "stage",
+    description: "Final discussion before making a deal.",
+    goal: "Get commitment, finalize pricing, sign contracts.",
+    aiInstructions: "Be ready to buy but have final concerns about price, timing, or implementation. Ask for guarantees and references. Negotiate terms.",
+    difficulty: "easy"
+  },
+  {
+    id: "retention-call",
+    name: "Retention/Account Management Call",
+    category: "stage",
+    description: "With existing customers.",
+    goal: "Ensure satisfaction, upsell, cross-sell, or renew.",
+    aiInstructions: "Act as existing customer. Have specific experiences with current product. Show interest in improvements but be cost-conscious about additions.",
+    difficulty: "medium"
+  },
+
+  // Based on Style
+  {
+    id: "discovery-call",
+    name: "Discovery Call",
+    category: "style",
+    description: "Asking questions to understand customer needs, pain points, and goals.",
+    goal: "Sets the foundation for tailored pitching.",
+    aiInstructions: "Be willing to share problems and challenges when asked good questions. Reward consultative approach. Don't volunteer information easily.",
+    difficulty: "medium"
+  },
+  {
+    id: "demo-call",
+    name: "Demo Call / Presentation Call",
+    category: "style",
+    description: "Showcasing the product/service.",
+    goal: "Demonstrate value, features, and fit.",
+    aiInstructions: "Ask specific questions about features. Challenge whether the product actually solves your problems. Want to see proof and examples.",
+    difficulty: "medium"
+  },
+  {
+    id: "consultative-call",
+    name: "Consultative Call",
+    category: "style",
+    description: "Focused on solving the customer's problem, acting more like an advisor than a seller.",
+    goal: "Builds trust and credibility.",
+    aiInstructions: "Appreciate advisory approach. Share more details when salesperson shows expertise. Be suspicious of pushy sales tactics.",
+    difficulty: "easy"
+  },
+  {
+    id: "check-in-call",
+    name: "Check-In Call",
+    category: "style",
+    description: "Casual touchpoint without a hard pitch.",
+    goal: "Keep the relationship warm.",
+    aiInstructions: "Be friendly and conversational. Appreciate the no-pressure approach. Share updates about your business situation.",
+    difficulty: "easy"
+  },
+  {
+    id: "objection-handling-call",
+    name: "Objection-Handling Call",
+    category: "style",
+    description: "Specifically to address hesitations about price, timing, or competition.",
+    goal: "Address objections and move forward.",
+    aiInstructions: "Have strong, specific objections ready. Don't give up easily. Require compelling responses to change your mind.",
+    difficulty: "hard"
+  },
+
+  // Based on Sales Process
+  {
+    id: "prospecting-call",
+    name: "Prospecting Call",
+    category: "process",
+    description: "Identifying and qualifying potential buyers.",
+    goal: "Identify and qualify potential buyers.",
+    aiInstructions: "Be busy and time-conscious. Need to understand value quickly. Ask 'Why should I care?' and 'What's in it for me?'",
+    difficulty: "hard"
+  },
+  {
+    id: "qualification-call",
+    name: "Qualification Call", 
+    category: "process",
+    description: "Confirming whether the lead fits criteria (budget, authority, need, timeline).",
+    goal: "Confirm budget, authority, need, and timeline (BANT).",
+    aiInstructions: "Be cautious about sharing budget details. Ask why they need this information. Show you have decision-making authority but involve others.",
+    difficulty: "medium"
+  },
+  {
+    id: "negotiation-call",
+    name: "Negotiation Call",
+    category: "process", 
+    description: "Discussing pricing, terms, and final details.",
+    goal: "Finalize pricing, terms, and details.",
+    aiInstructions: "Focus heavily on price and terms. Compare to competitors. Ask for discounts and better terms. Show you're serious but price-sensitive.",
+    difficulty: "medium"
+  }
+]

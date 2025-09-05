@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Menu, X, Sparkles } from "lucide-react"
 import { useState } from "react"
+import { HeaderAuth } from "@/components/header-auth"
 
 export function AppHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -46,6 +47,7 @@ export function AppHeader() {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center space-x-4">
+            <HeaderAuth />
             <ThemeToggle />
             <Link href="/train/setup">
               <Button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl transition-all duration-300 px-6">
@@ -84,6 +86,9 @@ export function AppHeader() {
                 </Link>
               ))}
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="pb-3">
+                  <HeaderAuth />
+                </div>
                 <Link href="/train/setup" onClick={() => setMobileMenuOpen(false)}>
                   <Button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800">
                     Start Training

@@ -129,6 +129,30 @@ function ReviewPageInner() {
       } catch {}
       const aiMsg = (json && (json["AI output"] || json.message || json.text || json.reply)) || text || null
       setInitialBuyerMessage(aiMsg)
+      // Fire-and-forget: record history start (if authenticated)
+      try {
+        const historyPayload = {
+          sessionId: sid,
+          product: payload.product,
+          persona: payload.scenarioSettings.persona,
+          difficulty: payload.scenarioSettings.difficulty,
+          status: "started",
+          createdAt: Date.now(),
+        }
+        const histUrl = "/api/history"
+        if (typeof navigator !== "undefined" && "sendBeacon" in navigator) {
+          const blob = new Blob([JSON.stringify(historyPayload)], { type: "application/json" })
+          navigator.sendBeacon(histUrl, blob)
+        } else {
+          fetch(histUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(historyPayload),
+            keepalive: true,
+            cache: "no-store",
+          }).catch(() => {})
+        }
+      } catch {}
     } catch (e) {
       setInitialBuyerMessage(null)
     } finally {

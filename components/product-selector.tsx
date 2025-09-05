@@ -6,19 +6,22 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Package, Plus, Sparkles, Check } from "lucide-react"
+import { Package, Plus, Sparkles, Check, CheckCircle, Loader2 } from "lucide-react"
 import type { Product } from "@/lib/types"
+import { useToast } from "@/hooks/use-toast"
 
 interface ProductSelectorProps {
   selectedProduct: Product | null
-  onProductSelect: (product: Product) => void
+  onSelect: (product: Product) => void
   products: Product[]
 }
 
-export function ProductSelector({ selectedProduct, onProductSelect, products }: ProductSelectorProps) {
+export function ProductSelector({ selectedProduct, onSelect, products }: ProductSelectorProps) {
   const [showCustom, setShowCustom] = useState(false)
   const [customName, setCustomName] = useState("")
   const [customDescription, setCustomDescription] = useState("")
+  const [aiLoading, setAiLoading] = useState(false)
+  const { toast } = useToast()
 
   const handleCustomProduct = () => {
     if (customName.trim() && customDescription.trim()) {
@@ -27,7 +30,7 @@ export function ProductSelector({ selectedProduct, onProductSelect, products }: 
         name: customName.trim(),
         description: customDescription.trim(),
       }
-      onProductSelect(customProduct)
+      onSelect(customProduct)
     }
   }
 
@@ -47,12 +50,12 @@ export function ProductSelector({ selectedProduct, onProductSelect, products }: 
         {products.map((product) => (
           <Card
             key={product.id}
-            className={`cursor-pointer transition-all duration-300 card-hover border-0 shadow-modern ${
+            className={`selection-card cursor-pointer transition-all duration-300 shadow-modern ${
               selectedProduct?.id === product.id
-                ? "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20 scale-[1.02]"
+                ? "selected ring-2 ring-emerald-500 scale-[1.01]"
                 : "bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-800"
             }`}
-            onClick={() => onProductSelect(product)}
+            onClick={() => onSelect(product)}
           >
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
@@ -60,7 +63,7 @@ export function ProductSelector({ selectedProduct, onProductSelect, products }: 
                   <div
                     className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 ${
                       selectedProduct?.id === product.id
-                        ? "bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg"
+                        ? "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg animate-scale-in"
                         : "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600"
                     }`}
                   >
@@ -73,7 +76,7 @@ export function ProductSelector({ selectedProduct, onProductSelect, products }: 
                   <CardTitle className="text-xl text-gray-900 dark:text-white">{product.name}</CardTitle>
                 </div>
                 {selectedProduct?.id === product.id && (
-                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                  <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center animate-scale-in">
                     <Check className="w-4 h-4 text-white" />
                   </div>
                 )}
@@ -88,7 +91,7 @@ export function ProductSelector({ selectedProduct, onProductSelect, products }: 
         {/* Custom Product Option */}
         {!showCustom ? (
           <Card
-            className="cursor-pointer transition-all duration-300 card-hover border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20"
+            className="selection-card cursor-pointer transition-all duration-300 border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50 hover:border-emerald-400 hover:bg-emerald-50/40 dark:hover:bg-emerald-900/10"
             onClick={() => setShowCustom(true)}
           >
             <CardContent className="flex items-center justify-center py-12">
@@ -126,9 +129,49 @@ export function ProductSelector({ selectedProduct, onProductSelect, products }: 
               </div>
 
               <div>
-                <Label htmlFor="product-description" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Description
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="product-description" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Description
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!customName.trim() || aiLoading}
+                    onClick={async () => {
+                      if (!customName.trim()) return
+                      setAiLoading(true)
+                      try {
+                        const res = await fetch("/api/ai/generate-description", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ productName: customName })
+                        })
+                        const data = await res.json()
+                        if (!res.ok) throw new Error(data?.error || "Failed to generate")
+                        setCustomDescription(data.description)
+                        toast({ title: "Description generated", description: "You can edit it before proceeding." })
+                      } catch (err: any) {
+                        toast({ variant: "destructive", title: "Generation failed", description: String(err?.message || err) })
+                      } finally {
+                        setAiLoading(false)
+                      }
+                    }}
+                    className="gap-2"
+                    aria-label="Generate description with AI"
+                    title="Generate description with AI"
+                  >
+                    {aiLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> Generating
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" /> Generate with AI
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <Textarea
                   id="product-description"
                   placeholder="Describe your product, key features, and benefits..."

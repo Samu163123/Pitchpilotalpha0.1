@@ -6,28 +6,37 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { AudioMeter } from "@/components/audio-meter"
-import { Mic, MicOff, Send, Phone, Captions } from "lucide-react"
+import { Mic, MicOff, Send, Phone, Captions, Loader2 } from "lucide-react"
 import { useState } from "react"
+import { Switch } from "@/components/ui/switch"
 
 interface CallControlsProps {
   userInput: string
   setUserInput: (value: string) => void
+  onUserEdit?: (value: string) => void
   onSendMessage: () => void
   onEndCall: () => void
   onKeyPress: (e: React.KeyboardEvent) => void
   isRecording: boolean
   setIsRecording: (recording: boolean) => void
+  autoSend: boolean
+  setAutoSend: (v: boolean) => void
+  voskReady: boolean
   disabledInput?: boolean
 }
 
 export function CallControls({
   userInput,
   setUserInput,
+  onUserEdit,
   onSendMessage,
   onEndCall,
   onKeyPress,
   isRecording,
   setIsRecording,
+  autoSend,
+  setAutoSend,
+  voskReady,
   disabledInput = false,
 }: CallControlsProps) {
   const [captionsEnabled, setCaptionsEnabled] = useState(true)
@@ -54,6 +63,13 @@ export function CallControls({
             <span>{isRecording ? "Recording" : "Mic Off"}</span>
           </Button>
 
+          {isRecording && !voskReady && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Loading model…</span>
+            </div>
+          )}
+
           <Button
             variant={captionsEnabled ? "default" : "outline"}
             size="sm"
@@ -73,6 +89,12 @@ export function CallControls({
             <span>{isMuted ? "Unmute" : "Mute"}</span>
           </Button>
 
+          {/* Auto-send toggle */}
+          <div className="flex items-center gap-2 ml-2">
+            <Switch id="auto-send" checked={autoSend} onCheckedChange={setAutoSend} />
+            <label htmlFor="auto-send" className="text-xs text-muted-foreground select-none">Auto‑send recognized text</label>
+          </div>
+
           {/* Audio Meter */}
           <AudioMeter isActive={isRecording} />
         </div>
@@ -82,7 +104,11 @@ export function CallControls({
           <Textarea
             placeholder="Type your message or use voice recording..."
             value={userInput}
-            onChange={(e) => !disabledInput && setUserInput(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value
+              if (onUserEdit) onUserEdit(v)
+              else setUserInput(v)
+            }}
             onKeyPress={(e) => {
               if (disabledInput) {
                 e.preventDefault()

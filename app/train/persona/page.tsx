@@ -6,13 +6,55 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2 } from "lucide-react"
-import { useSetupSelectionStore, useBuyerPersonaDraftStore } from "@/lib/store"
-import { generateBuyerPersona, type PersonaGenerateRequest } from "@/lib/webhook"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Loader2, User, Briefcase, Target, Brain, MessageSquare, DollarSign, MapPin, GraduationCap, Info, ChevronRight, Sparkles, Check } from 'lucide-react'
+import { useSetupSelectionStore } from "@/lib/store"
+import { useBuyerPersonaDraftStore } from "@/lib/store"
+import { PersonaGenerateRequest, generateBuyerPersona } from "@/lib/webhook"
 import { useToast } from "@/hooks/use-toast"
+import Link from "next/link"
 
 const REVIEW_ROUTE = "/train/review" // TODO: adjust if your review page path differs
+
+function PersonaPreviewCard({ personaName, background, demographics, psychographics, painPoints, mindset, quote, marketType }) {
+  const renderList = (text, icon) => {
+    if (!text) return null
+    const items = text.split(/\n|,/g).map(s => s.trim()).filter(Boolean)
+    if (items.length === 0) return null
+    return (
+      <ul className="space-y-1.5">
+        {items.map((item, i) => (
+          <li key={i} className="flex items-start gap-2">
+            {icon}
+            <span className="flex-1">{item}</span>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  return (
+    <Card className="rounded-2xl shadow-modern bg-gradient-to-br from-secondary/30 via-background to-background sticky top-24">
+      <CardHeader className="pb-4">
+        <CardTitle className="gradient-text text-2xl">{(personaName || 'Persona Name')}</CardTitle>
+        <CardDescription>{background || 'Background summary...'}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5 text-sm">
+        {quote && (
+          <blockquote className="border-l-4 border-primary pl-4 italic text-muted-foreground">
+            <p>"{quote}"</p>
+          </blockquote>
+        )}
+        <div className="space-y-4">
+          {demographics && <div><h4 className="font-semibold mb-2 flex items-center gap-2"><User className="w-4 h-4 text-primary"/>Demographics</h4>{renderList(demographics, <MapPin className="w-3.5 h-3.5 mt-1 text-muted-foreground" />)}</div>}
+          {psychographics && <div><h4 className="font-semibold mb-2 flex items-center gap-2"><Brain className="w-4 h-4 text-primary"/>Psychographics</h4>{renderList(psychographics, <Check className="w-3.5 h-3.5 mt-1 text-muted-foreground" />)}</div>}
+          {painPoints && <div><h4 className="font-semibold mb-2 flex items-center gap-2"><Target className="w-4 h-4 text-primary"/>Pain Points</h4>{renderList(painPoints, <ChevronRight className="w-3.5 h-3.5 mt-1 text-muted-foreground" />)}</div>}
+          {mindset && <div><h4 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary"/>Mindset</h4>{renderList(mindset, <Info className="w-3.5 h-3.5 mt-1 text-muted-foreground" />)}</div>}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 export default function BuyerPersonaPage() {
   const router = useRouter()
@@ -27,7 +69,8 @@ export default function BuyerPersonaPage() {
   const [painPoints, setPainPoints] = useState(draft?.painPoints ?? "")
   const [mindset, setMindset] = useState(draft?.mindset ?? "")
   const [quote, setQuote] = useState(draft?.quote ?? "")
-  const [gen, setGen] = useState<Record<string, boolean>>({ personaName: true, background: true, demographics: false, psychographics: false, painPoints: true, mindset: true, quote: true })
+  // All fields checked by default for AI generation
+  const [gen, setGen] = useState<Record<string, boolean>>({ personaName: true, background: true, demographics: true, psychographics: true, painPoints: true, mindset: true, quote: true })
   const [loading, setLoading] = useState(false)
   const [marketType, setMarketType] = useState<"B2B" | "B2C">("B2C")
   const [options, setOptions] = useState<any[] | null>(null)
@@ -144,81 +187,45 @@ export default function BuyerPersonaPage() {
     }
     setLoading(true)
     setOptions(null)
+    setEdited(null)
+
     try {
+      const generateFields = Object.keys(gen).filter(k => gen[k]) as Array<keyof PersonaGenerateRequest['traits']>
+
       const req: PersonaGenerateRequest = {
         product: { name: selectedProduct.name, description: selectedProduct.description },
-        traits: { personaName: personaName || undefined, background: background || undefined, demographics: demographics || undefined, psychographics: psychographics || undefined, painPoints: painPoints || undefined, mindset: mindset || undefined, quote: quote || undefined },
+        traits: { personaName, background, demographics, psychographics, painPoints, mindset, quote },
         generateFields,
         marketType,
-        count: 2,
+        count: 3,
       }
-      const res = await generateBuyerPersona(req)
-      console.log("[Persona] webhook status:", res.status, "ok:", res.ok)
-      if (res.text) console.log("[Persona] raw text:", res.text)
-      const raw = (res.json as any) || parseMaybeJSON(res.text)
-      console.log("[Persona] raw json:", raw)
-      // Extra diagnostics
-      const diagParsedFromText = res.text ? parseMaybeJSON(res.text) : null
-      if (diagParsedFromText) console.log("[Persona] parsed from text:", diagParsedFromText)
-      let data = normalizePersonaData(raw)
-      console.log("[Persona] normalizePersonaData(raw):", data)
-      if (!data && res.text) {
-        // Final fallback: extract last JSON object/array from text
-        const m = res.text.match(/\{[\s\S]*\}|\[[\s\S]*\]/)
-        if (m) {
-          const extracted = parseMaybeJSON(m[0])
-          data = normalizePersonaData(extracted)
-          console.log("[Persona] extracted JSON then normalized:", data)
+
+      const result = await generateBuyerPersona(req)
+
+      if (result.ok && result.json) {
+        const { personas } = result.json
+        console.log("[Persona] parsed options:", personas)
+        if (personas[0]) console.log("[Persona] option[0] keys:", Object.keys(personas[0]))
+        if (personas[1]) console.log("[Persona] option[1] keys:", Object.keys(personas[1]))
+        setOptions(personas)
+        // Prepare editable copies
+        try {
+          const deep = JSON.parse(JSON.stringify(personas))
+          setEdited(deep)
+        } catch {
+          setEdited(personas.map(x => ({ ...x })))
         }
-      }
-      let list = normalizePersonaList(raw) || (data ? [data] : null)
-      console.log("[Persona] normalizePersonaList(raw):", list)
-      if (!list || list.length === 0) {
-        // Fallback: parse res.text if it's an array of wrappers each with content.parts[0].text containing JSON
-        const tParsed = res.text ? parseMaybeJSON(res.text) : null
-        if (Array.isArray(tParsed)) {
-          const collected: any[] = []
-          for (const entry of tParsed) {
-            const innerText = entry?.content?.parts?.[0]?.text
-            const innerObj = parseMaybeJSON(innerText)
-            if (innerObj && typeof innerObj === 'object') {
-              const nested = (innerObj.options || innerObj.choices || innerObj.suggestions || innerObj.results) as any[] | undefined
-              if (Array.isArray(nested)) {
-                collected.push(...nested.map(n => normalizePersonaData(n)).filter(Boolean) as any[])
-              } else {
-                const single = normalizePersonaData(innerObj)
-                if (single) collected.push(single)
-              }
-            }
-          }
-          if (collected.length > 0) {
-            list = collected
-          }
-        }
-      }
-      if (!list || list.length === 0) {
-        console.log("[Persona] raw type:", typeof raw, "text len:", res.text?.length)
-        if (typeof raw === "object" && raw) console.log("[Persona] raw keys:", Object.keys(raw))
+        setEditMode({})
+        // Do not auto-apply; user will pick one
+        toast({ title: "Personas generated", description: `Received ${personas.length} option(s). Choose one to apply.` })
+      } else {
+        console.log("[Persona] raw type:", typeof result, "text len:", result.text?.length)
+        if (typeof result === "object" && result) console.log("[Persona] raw keys:", Object.keys(result))
         toast({ title: "Invalid AI output", description: "Response was not a JSON object/array with persona fields.", variant: "destructive" })
-        return
       }
-      // Keep only first two options
-      list = list.slice(0, 2)
-      console.log("[Persona] parsed options:", list)
-      if (list[0]) console.log("[Persona] option[0] keys:", Object.keys(list[0]))
-      if (list[1]) console.log("[Persona] option[1] keys:", Object.keys(list[1]))
-      setOptions(list)
-      // Prepare editable copies
-      try {
-        const deep = JSON.parse(JSON.stringify(list))
-        setEdited(deep)
-      } catch {
-        setEdited(list.map(x => ({ ...x })))
-      }
-      setEditMode({})
-      // Do not auto-apply; user will pick one
-      toast({ title: "Personas generated", description: `Received ${list.length} option(s). Choose one to apply.` })
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }
 
   const onSave = () => {
@@ -280,195 +287,148 @@ export default function BuyerPersonaPage() {
   const showForm = !options || options.length === 0
 
   return (
-    <div className="max-w-5xl mx-auto p-6 md:p-8 space-y-6">
-      <div className="text-sm text-muted-foreground">Product: {selectedProduct?.name}</div>
-      <Card className="rounded-xl shadow-sm border">
-        <CardHeader className="pb-4 border-b">
-          <CardTitle className="text-xl">Buyer Persona</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {showForm && (
-            <>
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <div className="text-sm mb-1 font-medium">Persona Name</div>
-                  <Input className="rounded-lg" value={personaName} onChange={(e) => setPersonaName(e.target.value)} placeholder="John Doe" />
+    <div className="max-w-7xl mx-auto p-6 md:p-8 space-y-6">
+      <div className="flex items-center gap-2 text-xs md:text-sm">
+        <span className="px-2 py-1 rounded-full bg-primary/10 text-primary">Product</span>
+        <span className="text-muted-foreground">{selectedProduct?.name}</span>
+      </div>
+      
+      {showForm ? (
+        <div className="grid md:grid-cols-3 gap-8 items-start">
+          <div className="md:col-span-2 space-y-6">
+            <Card className="rounded-2xl border shadow-modern">
+              <CardHeader className="pb-4 border-b bg-gradient-to-r from-primary/5 via-secondary/10 to-primary/5 rounded-t-2xl">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xl gradient-text">Create Buyer Persona</CardTitle>
+                  <span className="hidden md:inline-flex items-center gap-2 text-xs px-3 py-1 rounded-full bg-secondary text-secondary-foreground">
+                    Tailor your ideal customer
+                  </span>
                 </div>
-                <div>
-                  <div className="text-sm mb-1 font-medium">Background</div>
-                  <Textarea className="rounded-lg" rows={3} value={background} onChange={(e) => setBackground(e.target.value)} placeholder="role, industry, stage, experience" />
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="group/field rounded-xl border p-3 transition-colors hover:bg-secondary/30 focus-within:bg-secondary/40 focus-within:ring-2 focus-within:ring-primary/30">
+                    <div className="text-sm mb-1 font-medium text-primary flex items-center gap-2"><User className="w-4 h-4"/>Persona Name</div>
+                    <Input className="rounded-lg bg-transparent" value={personaName} onChange={(e) => setPersonaName(e.target.value)} placeholder="e.g. Marketing Manager Mary" />
+                  </div>
+                  <div className="group/field rounded-xl border p-3 transition-colors hover:bg-secondary/30 focus-within:bg-secondary/40 focus-within:ring-2 focus-within:ring-primary/30">
+                    <div className="text-sm mb-1 font-medium text-primary flex items-center gap-2"><Briefcase className="w-4 h-4"/>Background</div>
+                    <Textarea className="rounded-lg bg-transparent" rows={3} value={background} onChange={(e) => setBackground(e.target.value)} placeholder="Role, industry, company size..." />
+                  </div>
+                  <div className="group/field rounded-xl border p-3 transition-colors hover:bg-secondary/30 focus-within:bg-secondary/40 focus-within:ring-2 focus-within:ring-primary/30">
+                    <div className="text-sm mb-1 font-medium text-primary flex items-center gap-2"><Info className="w-4 h-4"/>Demographics</div>
+                    <Textarea className="rounded-lg bg-transparent" rows={3} value={demographics} onChange={(e) => setDemographics(e.target.value)} placeholder="Age, gender, location, education..." />
+                  </div>
+                  <div className="group/field rounded-xl border p-3 transition-colors hover:bg-secondary/30 focus-within:bg-secondary/40 focus-within:ring-2 focus-within:ring-primary/30">
+                    <div className="text-sm mb-1 font-medium text-primary flex items-center gap-2"><Brain className="w-4 h-4"/>Psychographics</div>
+                    <Textarea className="rounded-lg bg-transparent" rows={3} value={psychographics} onChange={(e) => setPsychographics(e.target.value)} placeholder="Values, interests, lifestyle..." />
+                  </div>
+                  <div className="group/field rounded-xl border p-3 transition-colors hover:bg-secondary/30 focus-within:bg-secondary/40 focus-within:ring-2 focus-within:ring-primary/30">
+                    <div className="text-sm mb-1 font-medium text-primary flex items-center gap-2"><Target className="w-4 h-4"/>Key Pain Points</div>
+                    <Textarea className="rounded-lg bg-transparent" rows={3} value={painPoints} onChange={(e) => setPainPoints(e.target.value)} placeholder="Specific problems, challenges..." />
+                  </div>
+                  <div className="group/field rounded-xl border p-3 transition-colors hover:bg-secondary/30 focus-within:bg-secondary/40 focus-within:ring-2 focus-within:ring-primary/30">
+                    <div className="text-sm mb-1 font-medium text-primary flex items-center gap-2"><Sparkles className="w-4 h-4"/>Current Mindset</div>
+                    <Textarea className="rounded-lg bg-transparent" rows={3} value={mindset} onChange={(e) => setMindset(e.target.value)} placeholder="Attitudes towards solutions, buying triggers..." />
+                  </div>
+                  <div className="md:col-span-2 group/field rounded-xl border p-3 transition-colors hover:bg-secondary/30 focus-within:bg-secondary/40 focus-within:ring-2 focus-within:ring-primary/30">
+                    <div className="text-sm mb-1 font-medium text-primary flex items-center gap-2"><MessageSquare className="w-4 h-4"/>Representative Quote</div>
+                    <Input className="rounded-lg bg-transparent" value={quote} onChange={(e) => setQuote(e.target.value)} placeholder='"We need tools that scale without complexity."' />
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm mb-1 font-medium">Demographics (optional)</div>
-                  <Textarea className="rounded-lg" rows={3} value={demographics} onChange={(e) => setDemographics(e.target.value)} placeholder="age, gender, location, education, income" />
-                </div>
-                <div>
-                  <div className="text-sm mb-1 font-medium">Psychographics (optional)</div>
-                  <Textarea className="rounded-lg" rows={3} value={psychographics} onChange={(e) => setPsychographics(e.target.value)} placeholder="values, traits, interests, lifestyle" />
-                </div>
-                <div>
-                  <div className="text-sm mb-1 font-medium">Key Pain Points</div>
-                  <Textarea className="rounded-lg" rows={3} value={painPoints} onChange={(e) => setPainPoints(e.target.value)} placeholder="specific problems" />
-                </div>
-                <div>
-                  <div className="text-sm mb-1 font-medium">Current Mindset</div>
-                  <Textarea className="rounded-lg" rows={3} value={mindset} onChange={(e) => setMindset(e.target.value)} placeholder="attitudes to solutions and buying" />
-                </div>
-                <div className="md:col-span-2">
-                  <div className="text-sm mb-1 font-medium">Representative Quote</div>
-                  <Input className="rounded-lg" value={quote} onChange={(e) => setQuote(e.target.value)} placeholder='"We need tools that scale without complexity"' />
-                </div>
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="grid md:grid-cols-3 gap-3 text-sm">
-                {(["personaName","background","demographics","psychographics","painPoints","mindset","quote"] as const).map((k) => (
-                  <label key={k} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted transition-colors">
-                    <Checkbox checked={!!gen[k]} onCheckedChange={(v) => setGen((s) => ({ ...s, [k]: !!v }))} />
-                    Generate {k}
-                  </label>
-                ))}
-              </div>
+            <Card className="rounded-2xl border shadow-modern">
+              <CardHeader>
+                <CardTitle className="text-xl gradient-text flex items-center gap-2"><Sparkles className="w-5 h-5 text-primary"/>AI Generation</CardTitle>
+                <CardDescription>Select which fields you want the AI to help you with.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-3 gap-3 text-sm">
+                  {( ["personaName","background","demographics","psychographics","painPoints","mindset","quote"] as const).map((k) => (
+                    <label key={k} className="flex items-center gap-2 p-2 rounded-md hover:bg-secondary/30 transition-colors">
+                      <Checkbox checked={!!gen[k]} onCheckedChange={(v) => setGen((s) => ({ ...s, [k]: !!v }))} />
+                      <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary capitalize">{k.replace(/([A-Z])/g, ' $1').trim()}</span>
+                    </label>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
 
+            <div className="flex flex-wrap items-center gap-3 p-4 bg-background/50 backdrop-blur-sm rounded-2xl border sticky bottom-6">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="text-sm">Market:</div>
+                <div className="text-sm font-medium">Market:</div>
                 <select
                   value={marketType}
                   onChange={(e) => setMarketType(e.target.value as any)}
-                  className="border rounded-lg px-3 py-2 text-sm bg-background hover:bg-accent/20 transition-colors"
+                  className="border rounded-lg px-3 py-2 text-sm bg-background hover:bg-accent/40 transition-colors"
                 >
                   <option value="B2C">B2C</option>
                   <option value="B2B">B2B</option>
                 </select>
               </div>
-
+              <div className="flex-grow" />
               <div className="flex flex-wrap gap-3">
-                <Button onClick={onGenerate} disabled={loading} className="rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                <Button onClick={onGenerate} disabled={loading} className="rounded-lg shadow-sm hover:shadow-md transition-shadow bg-gradient-to-r from-primary to-secondary">
                   {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} AI Generate (2 options)
                 </Button>
                 <Button variant="outline" onClick={onSave} className="rounded-lg">Save & Back</Button>
                 <Button variant="default" onClick={onContinueToReview} className="rounded-lg" disabled={!personaName || !background}>Continue</Button>
               </div>
-            </>
-          )}
-
-          {!showForm && options && options.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">Choose a persona</h3>
-                  <p className="text-sm text-muted-foreground">Two AI-generated options are ready. Pick one to apply.</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setOptions(null)} className="rounded-lg">Edit manually</Button>
-                  <Button onClick={onGenerate} disabled={loading} className="rounded-lg">
-                    {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Regenerate
-                  </Button>
-                </div>
-              </div>
-              <div className="grid md:grid-cols-2 gap-6">
-                {(edited || options)?.map((opt, idx) => {
-                  const e = edited?.[idx] || opt
-                  const isEditing = !!editMode[idx]
-                  return (
-                    <Card key={idx} className="border rounded-xl hover:shadow-md transition-shadow">
-                      <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle className="text-base">Option {idx + 1}: {e.personaName || "(no name)"}</CardTitle>
-                        <Button size="sm" variant="ghost" onClick={() => handleToggleEdit(idx)}>{isEditing ? "Preview" : "Edit"}</Button>
-                      </CardHeader>
-                      <CardContent className="space-y-3 text-sm">
-                        {!isEditing && (
-                          <div className="space-y-3">
-                            {e.background && (
-                              <div>
-                                <div className="font-medium">🧩 Background</div>
-                                {renderBulletList(toStringVal(e.background), "📌")}
-                              </div>
-                            )}
-                            {e.demographics && (
-                              <div>
-                                <div className="font-medium">🌍 Demographics</div>
-                                {renderBulletList(toStringVal(e.demographics), "👥")}
-                              </div>
-                            )}
-                            {e.psychographics && (
-                              <div>
-                                <div className="font-medium">🧠 Psychographics</div>
-                                {renderBulletList(toStringVal(e.psychographics), "✨")}
-                              </div>
-                            )}
-                            {e.painPoints && (
-                              <div>
-                                <div className="font-medium">⚠️ Pain Points</div>
-                                {renderBulletList(toStringVal(e.painPoints), "❗")}
-                              </div>
-                            )}
-                            {e.mindset && (
-                              <div>
-                                <div className="font-medium">💭 Mindset</div>
-                                {renderBulletList(toStringVal(e.mindset), "💡")}
-                              </div>
-                            )}
-                            {e.quote && (
-                              <div>
-                                <div className="font-medium">💬 Quote</div>
-                                <div className="italic opacity-90">“{toStringVal(e.quote)}”</div>
-                              </div>
-                            )}
-                            {!e.background && !e.demographics && !e.psychographics && !e.painPoints && !e.mindset && !e.quote && (
-                              <div className="text-muted-foreground">
-                                <div className="text-xs">No recognizable fields parsed. Raw:</div>
-                                <pre className="text-xs bg-muted/50 rounded p-2 overflow-auto max-h-32">{toStringVal(e)}</pre>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {isEditing && (
-                          <div className="grid grid-cols-1 gap-3">
-                            <div>
-                              <div className="text-xs mb-1 font-medium">🧑‍💼 Persona Name</div>
-                              <Input value={e.personaName || ""} onChange={(ev) => handleEditedChange(idx, "personaName", ev.target.value)} />
-                            </div>
-                            <div>
-                              <div className="text-xs mb-1 font-medium">🧩 Background</div>
-                              <Textarea rows={3} value={toStringVal(e.background) || ""} onChange={(ev) => handleEditedChange(idx, "background", ev.target.value)} />
-                            </div>
-                            <div>
-                              <div className="text-xs mb-1 font-medium">🌍 Demographics</div>
-                              <Textarea rows={3} value={toStringVal(e.demographics) || ""} onChange={(ev) => handleEditedChange(idx, "demographics", ev.target.value)} />
-                            </div>
-                            <div>
-                              <div className="text-xs mb-1 font-medium">🧠 Psychographics</div>
-                              <Textarea rows={3} value={toStringVal(e.psychographics) || ""} onChange={(ev) => handleEditedChange(idx, "psychographics", ev.target.value)} />
-                            </div>
-                            <div>
-                              <div className="text-xs mb-1 font-medium">⚠️ Pain Points</div>
-                              <Textarea rows={3} value={toStringVal(e.painPoints) || ""} onChange={(ev) => handleEditedChange(idx, "painPoints", ev.target.value)} />
-                            </div>
-                            <div>
-                              <div className="text-xs mb-1 font-medium">💭 Mindset</div>
-                              <Textarea rows={3} value={toStringVal(e.mindset) || ""} onChange={(ev) => handleEditedChange(idx, "mindset", ev.target.value)} />
-                            </div>
-                            <div>
-                              <div className="text-xs mb-1 font-medium">💬 Quote</div>
-                              <Input value={toStringVal(e.quote) || ""} onChange={(ev) => handleEditedChange(idx, "quote", ev.target.value)} />
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="pt-2 flex items-center gap-2">
-                          <Button size="sm" className="rounded-md" onClick={() => handleUse(idx)}>Use this</Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+          </div>
+          <div className="md:col-span-1">
+            <PersonaPreviewCard {...{ personaName, background, demographics, psychographics, painPoints, mindset, quote, marketType }} />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Choose a persona</h3>
+              <p className="text-sm text-muted-foreground">Two AI-generated options are ready. Pick one to apply.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setOptions(null)} className="rounded-lg">Edit manually</Button>
+              <Button onClick={onGenerate} disabled={loading} className="rounded-lg bg-gradient-to-r from-primary to-secondary">
+                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Regenerate
+              </Button>
+            </div>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6">
+            {(edited || options)?.map((opt, idx) => {
+              const e = edited?.[idx] || opt
+              const isEditing = !!editMode[idx]
+              return (
+                <div key={idx}>
+                  <h3 className="text-lg font-semibold mb-2 text-center">Option {idx + 1}</h3>
+                  <PersonaPreviewCard 
+                    personaName={e.personaName}
+                    background={e.background}
+                    demographics={e.demographics}
+                    psychographics={e.psychographics}
+                    painPoints={e.painPoints}
+                    mindset={e.mindset}
+                    quote={e.quote}
+                    marketType={marketType}
+                  />
+                  <div className="mt-4 flex justify-center">
+                     <Button onClick={() => handleUse(idx)} className="w-full bg-gradient-to-r from-primary to-secondary">Apply this persona</Button>
+                  </div>
+                  <div className="mt-2 flex justify-center">
+                    <Link href="/train/chat" className="w-full">
+                      <Button variant="outline" className="w-full">Start Chat</Button>
+                    </Link>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

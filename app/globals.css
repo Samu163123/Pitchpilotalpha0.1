@@ -311,3 +311,48 @@
 .dark .card-hover:hover {
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
 }
+
+/* Selection card hover + shimmer + selected state (used by selectors) */
+@layer components {
+  .selection-card {
+    position: relative;
+    z-index: 0; /* establish stacking context for ::before */
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid transparent; /* visible on selected */
+    will-change: transform, box-shadow;
+  }
+
+  .selection-card:hover {
+    transform: translate3d(0, -4px, 0) !important; /* win over utility transforms */
+    box-shadow: 0 20px 40px -12px rgba(5, 150, 105, 0.15) !important;
+  }
+
+  .selection-card.selected {
+    border-color: #059669; /* emerald-600 */
+    background: linear-gradient(135deg, rgba(5, 150, 105, 0.05), rgba(16, 185, 129, 0.03));
+    box-shadow: 0 8px 25px -8px rgba(5, 150, 105, 0.25);
+  }
+
+  .dark .selection-card.selected {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05));
+  }
+
+  .selection-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.1), transparent);
+    transition: left 0.6s ease;
+    pointer-events: none;
+    z-index: 1; /* shimmer above content */
+    will-change: left;
+  }
+
+  .selection-card:hover::before {
+    left: 100%;
+  }
+}

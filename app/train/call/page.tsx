@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { CallHeader } from "@/components/call-header"
 import { TranscriptList } from "@/components/transcript-list"
@@ -15,8 +15,8 @@ import { PanelRightClose, PanelRightOpen, Loader2 } from "lucide-react"
 import { useScenarioStore, useCallStore, useHistoryStore, useProfileStore } from "@/lib/store"
 import { evaluateCall } from "@/lib/simulator"
 import { useToast } from "@/hooks/use-toast"
-import { sendUserMessageToWebhook } from "@/lib/webhook"
 import { sendAnalysisWebhook } from "@/lib/webhook"
+import { VoskController } from "@/lib/voskClient"
 
 export default function CallPage() {
   const router = useRouter()
@@ -36,20 +36,122 @@ export default function CallPage() {
   const [aiTyping, setAiTyping] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<"hints" | "notes">("hints")
   const initialAddedRef = useRef(false)
+  const voskRef = useRef<VoskController | null>(null)
   // Inline error + resend support
   const [errorBelowTs, setErrorBelowTs] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
   const [lastUser, setLastUser] = useState<{ text: string; ts: number } | null>(null)
-
   // Timer bonus management
   const [bonusAccumSec, setBonusAccumSec] = useState(0)
   const [bonusFlashSec, setBonusFlashSec] = useState<number | null>(null)
+
+  const [autoSend, setAutoSend] = useState(false) // default: manual send
+  const [voskReady, setVoskReady] = useState(false)
+
+  // Accumulates confirmed speech text across pauses (only when autoSend is off)
+  const [speechCommitted, setSpeechCommitted] = useState("")
+  const speechCommittedRef = useRef("")
 
   const computeRemainingSec = () => {
     if (!scenario || !startTime || !scenario.timeLimitSec || scenario.timeLimitSec <= 0) return null
     const elapsed = Math.floor((Date.now() - startTime) / 1000)
     return Math.max(0, scenario.timeLimitSec + bonusAccumSec - elapsed)
   }
+
+  useEffect(() => {
+    if (!scenario) return
+    if (!isActive) {
+      console.debug("[Call] Starting call session")
+      startCall(scenario)
+    }
+  }, [scenario, isActive, startCall])
+
+  // Start/stop Vosk browser recognition when mic toggles
+  useEffect(() => {
+    let cancelled = false
+    const start = async () => {
+      try {
+        setVoskReady(false)
+        const controller = new VoskController(["/models/vosk/model.tar.gz", "/models/vosk/model.tar"], {
+          onPartial: (partial) => {
+            if (autoSend) {
+              // In auto-send mode, just reflect the current partial
+              const p = (partial || "").trim()
+              if (p) setUserInput(p)
+              return
+            }
+            // Manual mode: show committed + current partial without erasing committed text
+            const p = (partial || "").trim()
+            if (p) {
+              // Cancel any pending commit and reschedule on new non-empty partial
+              if (partialCommitTimerRef.current) clearTimeout(partialCommitTimerRef.current)
+              lastPartialRef.current = p
+              const committed = speechCommittedRef.current
+              const combined = committed ? `${committed} ${p}` : p
+              setUserInput(combined)
+              // If user pauses ~800ms, commit the last partial to the buffer
+              partialCommitTimerRef.current = setTimeout(() => {
+                const lp = lastPartialRef.current.trim()
+                if (!lp) return
+                const curCommitted = speechCommittedRef.current
+                const nextCommitted = curCommitted ? `${curCommitted} ${lp}` : lp
+                speechCommittedRef.current = nextCommitted
+                setSpeechCommitted(nextCommitted)
+                setUserInput(nextCommitted)
+                lastPartialRef.current = ""
+              }, 800)
+            }
+          },
+          onResult: (text) => {
+            const finalText = (text || "").trim()
+            if (!finalText) return
+            if (autoSend) {
+              // Auto-send current finalized chunk
+              setUserInput(finalText)
+              handleSendMessage(finalText)
+              return
+            }
+            // Manual mode: append final chunk to committed buffer and reflect in input
+            const committed = speechCommittedRef.current
+            const nextCommitted = committed ? `${committed} ${finalText}` : finalText
+            setSpeechCommitted(nextCommitted)
+            speechCommittedRef.current = nextCommitted
+            setUserInput(nextCommitted)
+          },
+          onError: (e) => console.warn("[VOSK] error:", e),
+          onReady: () => {
+            console.debug("[VOSK] model ready")
+            setVoskReady(true)
+          },
+        })
+        voskRef.current = controller
+        await controller.start()
+      } catch (e) {
+        console.warn("[VOSK] failed to start:", e)
+      }
+    }
+
+    if (isRecording) {
+      start()
+    } else {
+      // stop
+      if (voskRef.current) {
+        voskRef.current.stop().catch(() => undefined)
+        voskRef.current = null
+      }
+      setVoskReady(false)
+    }
+    return () => {
+      if (cancelled) return
+      cancelled = true
+      if (voskRef.current) {
+        voskRef.current.stop().catch(() => undefined)
+        voskRef.current = null
+      }
+      setVoskReady(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRecording, autoSend])
 
   useEffect(() => {
     if (!scenario) return
@@ -100,13 +202,68 @@ export default function CallPage() {
     setInitialBuyerMessage(null)
   }, [scenario, isActive, initialBuyerMessage])
 
-  const handleSendMessage = async () => {
-    if (!userInput.trim() || !scenario || !sessionId) {
-      console.warn("[Call] handleSendMessage: blocked (trimmed?", !!userInput.trim(), "scenario?", !!scenario, "sessionId?", !!sessionId, ")")
+  const buildChatMessages = useCallback(() => {
+    const messages: { role: 'user' | 'assistant'; content: string }[] = []
+    
+    transcript.forEach(segment => {
+      if (segment.role === 'user' && segment.text.trim()) {
+        messages.push({ role: 'user', content: segment.text.trim() })
+      } else if (segment.role === 'buyer' && segment.text.trim()) {
+        messages.push({ role: 'assistant', content: segment.text.trim() })
+      }
+    })
+    
+    return messages
+  }, [transcript])
+
+  const callChatAPI = async (userMessage: string) => {
+    const messages = buildChatMessages()
+    messages.push({ role: 'user', content: userMessage })
+
+    const scenarioSettings = {
+      difficulty: scenario?.difficulty || 'medium',
+      brief: scenario?.brief || {},
+      timeLimitSec: computeRemainingSec()
+    }
+
+    console.log('[Call] Calling chat API with:', {
+      messagesCount: messages.length,
+      scenarioSettings,
+      product: scenario?.product
+    })
+
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages,
+        product: scenario?.product,
+        persona: { 
+          personaName: scenario?.persona,
+          background: scenario?.brief?.background,
+          painPoints: scenario?.brief?.pains,
+          mindset: scenario?.brief?.mindset
+        },
+        scenarioSettings
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Chat API error: ${response.status} ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return data.reply || ''
+  }
+
+  const handleSendMessage = async (overrideText?: string) => {
+    const effectiveText = (overrideText ?? userInput).trim()
+    if (!effectiveText || !scenario || !sessionId) {
+      console.warn("[Call] handleSendMessage: blocked (trimmed?", !!effectiveText, "scenario?", !!scenario, "sessionId?", !!sessionId, ")")
       return
     }
 
-    const text = userInput.trim()
+    const text = effectiveText
 
     console.groupCollapsed("[Call] Sending user message")
     console.debug("sessionId:", sessionId)
@@ -122,94 +279,58 @@ export default function CallPage() {
     console.debug("Added user segment at", userSegTs)
 
     setUserInput("")
+    setSpeechCommitted("")
+    speechCommittedRef.current = ""
     setLastUser({ text, ts: userSegTs })
     // clear prior error if any
     setErrorBelowTs(null)
     setErrorMessage(undefined)
 
-    // Ask n8n for the AI reply
+    // Ask chat API for the AI reply
     try {
       setAiTyping(true)
-      console.time("sendUserMessageToWebhook")
-      const remaining = computeRemainingSec()
-      const result = await sendUserMessageToWebhook(sessionId, text, scenario, remaining)
-      console.timeEnd("sendUserMessageToWebhook")
+      console.time("callChatAPI")
+      const aiText = await callChatAPI(text)
+      console.timeEnd("callChatAPI")
 
-      console.debug("Webhook result status:", result.status, "ok:", result.ok)
-      if (result.text) console.debug("Webhook result text preview:", result.text.slice(0, 300))
-      if (result.json) console.debug("Webhook result json keys:", Object.keys(result.json))
-
-      let aiText =
-        (result.json && (result.json["AI output"] || result.json.message || result.json.text || result.json.reply)) ||
-        result.text ||
-        ""
-
-      console.debug("Parsed aiText length:", aiText ? aiText.length : 0)
-
-      // Detect trailing hidden JSON decision {"decision":"accepted|declined"}
+      console.debug("Chat API result:", aiText.slice(0, 300))
+      
       let detectedDecision: "accepted" | "declined" | null = null
       if (aiText && aiText.trim()) {
         const match = aiText.match(/\{\s*"decision"\s*:\s*"(accepted|declined)"\s*\}\s*$/i)
         if (match) {
-          detectedDecision = match[1].toLowerCase() as "accepted" | "declined"
-          aiText = aiText.replace(match[0], "").trim()
-          console.debug("Detected decision:", detectedDecision)
+          detectedDecision = match[1].toLowerCase() as any
         }
-      }
 
-      // Detect and apply trailing time-add token: [add: N]
-      if (aiText && aiText.trim()) {
-        const addMatch = aiText.match(/\[add:\s*(\d+)\s*\]\s*$/i)
-        if (addMatch) {
-          const addSec = Math.max(0, parseInt(addMatch[1], 10) || 0)
-          aiText = aiText.replace(addMatch[0], "").trim()
-          const before = computeRemainingSec()
-          const timeCapped = typeof before === "number" && before <= 120
-          const hasLimit = !!(scenario.timeLimitSec && scenario.timeLimitSec > 0)
-          if (addSec > 0 && hasLimit && timeCapped) {
-            setBonusAccumSec((v) => v + addSec)
-            setBonusFlashSec(addSec)
-            console.debug(`[Timer] Applied bonus +${addSec}s (before=${before}s)`)
-          } else {
-            console.debug(`[Timer] Ignored bonus +${addSec}s (before=${before}s, hasLimit=${hasLimit})`)
+        // Parse time extension from AI response
+        const timeMatch = aiText.match(/\[add:\s*(\d+)\]|\bADD\s*\+\s*(\d+)\b/i)
+        if (timeMatch) {
+          const addSeconds = parseInt(timeMatch[1] || timeMatch[2], 10)
+          if (!isNaN(addSeconds) && addSeconds > 0) {
+            setBonusAccumSec((v) => v + addSeconds)
+            setBonusFlashSec(addSeconds)
+            console.log(`[Call] Added ${addSeconds} seconds to timer`)
           }
         }
-      }
 
-      // If upstream not ok or no displayable text, show inline error + resend
-      if (!result.ok || !aiText || !aiText.trim()) {
-        console.warn("[Call] No displayable AI reply; showing inline error")
-        setErrorBelowTs(userSegTs)
-        setErrorMessage(result.ok ? "No reply received." : `Error ${result.status || ''} from server`)
-        return
-      }
-
-      if (aiText && aiText.trim()) {
-        const buyerSegTs = Date.now()
+        // Add AI response to transcript
+        const aiSegTs = Date.now()
         addSegment({
           role: "buyer",
-          text: aiText.trim(),
-          timestamp: buyerSegTs,
+          text: aiText,
+          timestamp: aiSegTs,
         })
-        console.debug("Added buyer segment at", buyerSegTs)
-        // Send AI text to TTS and play audio
-        speak(aiText.trim())
-      } else {
-        console.warn("[Call] Empty AI reply parsed from webhook result")
-      }
-
-      if (detectedDecision) {
         setDecision(detectedDecision)
       }
     } catch (err) {
-      console.error("[Call] sendUserMessageToWebhook threw error:", err)
+      console.error("[Call] Chat API threw error:", err)
       // network/exception -> show inline error
       setErrorBelowTs(userSegTs)
       setErrorMessage("Network error. Tap to resend.")
     } finally {
       setAiTyping(false)
-      console.groupEnd()
     }
+    console.groupEnd()
   }
 
   const handleResend = async () => {
@@ -219,56 +340,51 @@ export default function CallPage() {
       setAiTyping(true)
       setErrorBelowTs(null)
       setErrorMessage(undefined)
-      const remaining = computeRemainingSec()
-      const result = await sendUserMessageToWebhook(sessionId, lastUser.text, scenario, remaining)
-      console.debug("Resend result status:", result.status, "ok:", result.ok)
-      let aiText =
-        (result.json && (result.json["AI output"] || result.json.message || result.json.text || result.json.reply)) ||
-        result.text ||
-        ""
+      
+      const aiText = await callChatAPI(lastUser.text)
+      console.debug("Resend result:", aiText.slice(0, 200))
+      
       let detectedDecision: "accepted" | "declined" | null = null
       if (aiText && aiText.trim()) {
         const match = aiText.match(/\{\s*"decision"\s*:\s*"(accepted|declined)"\s*\}\s*$/i)
         if (match) {
-          detectedDecision = match[1].toLowerCase() as "accepted" | "declined"
-          aiText = aiText.replace(match[0], "").trim()
+          detectedDecision = match[1].toLowerCase() as any
         }
-      }
-      // Detect and apply trailing time-add token: [add: N]
-      if (aiText && aiText.trim()) {
-        const addMatch = aiText.match(/\[add:\s*(\d+)\s*\]\s*$/i)
-        if (addMatch) {
-          const addSec = Math.max(0, parseInt(addMatch[1], 10) || 0)
-          aiText = aiText.replace(addMatch[0], "").trim()
-          const before = computeRemainingSec()
-          const timeCapped = typeof before === "number" && before <= 120
-          const hasLimit = !!(scenario.timeLimitSec && scenario.timeLimitSec > 0)
-          if (addSec > 0 && hasLimit && timeCapped) {
-            setBonusAccumSec((v) => v + addSec)
-            setBonusFlashSec(addSec)
-            console.debug(`[Timer] Applied bonus +${addSec}s (before=${before}s)`)
-          } else {
-            console.debug(`[Timer] Ignored bonus +${addSec}s (before=${before}s, hasLimit=${hasLimit})`)
+
+        // Parse time extension
+        const timeMatch = aiText.match(/\[add:\s*(\d+)\]|\bADD\s*\+\s*(\d+)\b/i)
+        if (timeMatch) {
+          const addSeconds = parseInt(timeMatch[1] || timeMatch[2], 10)
+          if (!isNaN(addSeconds) && addSeconds > 0) {
+            setBonusAccumSec((v) => v + addSeconds)
           }
         }
+
+        // Replace the last AI response or add new one
+        const lastAiIndex = transcript.findLastIndex(s => s.role === "buyer")
+        if (lastAiIndex >= 0) {
+          addSegment({
+            role: "buyer",
+            text: aiText,
+            timestamp: Date.now(),
+          })
+        } else {
+          addSegment({
+            role: "buyer",
+            text: aiText,
+            timestamp: Date.now(),
+          })
+        }
+        setDecision(detectedDecision)
       }
-      if (!result.ok || !aiText || !aiText.trim()) {
-        setErrorBelowTs(lastUser.ts)
-        setErrorMessage(result.ok ? "No reply received. Try again." : `Error ${result.status || ''} from server`)
-        return
-      }
-      const buyerSegTs = Date.now()
-      addSegment({ role: "buyer", text: aiText.trim(), timestamp: buyerSegTs })
-      speak(aiText.trim())
-      if (detectedDecision) setDecision(detectedDecision)
-    } catch (e) {
-      console.warn("[Call] Resend failed:", e)
+    } catch (err) {
+      console.error("[Call] Chat API resend error:", err)
       setErrorBelowTs(lastUser.ts)
-      setErrorMessage("Network error. Try again.")
+      setErrorMessage("Network error. Tap to resend.")
     } finally {
       setAiTyping(false)
-      console.groupEnd()
     }
+    console.groupEnd()
   }
 
   const handleEndCall = async () => {
@@ -314,9 +430,17 @@ export default function CallPage() {
           let data: any = res.json
           if (!data && res.text) {
             try {
-              data = JSON.parse(res.text)
+              // Handle markdown-wrapped JSON (```json ... ```)
+              let textToParse = res.text.trim()
+              if (textToParse.startsWith('```json') && textToParse.endsWith('```')) {
+                textToParse = textToParse.slice(7, -3).trim()
+              } else if (textToParse.startsWith('```') && textToParse.endsWith('```')) {
+                textToParse = textToParse.slice(3, -3).trim()
+              }
+              data = JSON.parse(textToParse)
             } catch (e) {
               console.warn("[Analysis] JSON.parse failed on response text:", e)
+              console.debug("[Analysis] Raw response text:", res.text)
             }
           }
           console.debug("[Analysis] Parsed webhook data:", data)
@@ -495,6 +619,22 @@ export default function CallPage() {
     }
   }
 
+  // Keep committed buffer in sync when user manually edits the textarea
+  const handleUserEdit = useCallback((value: string) => {
+    setUserInput(value)
+    setSpeechCommitted(value)
+    if (typeof speechCommittedRef !== "undefined") {
+      speechCommittedRef.current = value
+    }
+    if (typeof lastPartialRef !== "undefined") {
+      lastPartialRef.current = ""
+    }
+    if (typeof partialCommitTimerRef !== "undefined" && partialCommitTimerRef.current) {
+      clearTimeout(partialCommitTimerRef.current)
+      partialCommitTimerRef.current = null
+    }
+  }, [])
+
   // Show analysis loader when waiting for webhook
   if (analysisLoading) {
     return (
@@ -554,11 +694,15 @@ export default function CallPage() {
           <CallControls
             userInput={userInput}
             setUserInput={setUserInput}
+            onUserEdit={handleUserEdit}
             onSendMessage={handleSendMessage}
             onEndCall={handleEndCall}
             onKeyPress={handleKeyPress}
             isRecording={isRecording}
             setIsRecording={setIsRecording}
+            autoSend={autoSend}
+            setAutoSend={setAutoSend}
+            voskReady={voskReady}
             disabledInput={!!decision}
           />
         </div>

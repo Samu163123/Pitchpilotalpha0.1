@@ -7,18 +7,19 @@ import { Slider } from "@/components/ui/slider"
 import { ProductSelector } from "@/components/product-selector"
 import { PersonaSelector } from "@/components/persona-selector"
 import { DifficultySelector } from "@/components/difficulty-selector"
+import { CallTypeSelector } from "@/components/call-type-selector"
 import { PreCallBrief } from "@/components/pre-call-brief"
 import { useScenarioStore, useCallStore } from "@/lib/store"
 import { useSetupSelectionStore } from "@/lib/store"
-import { sendScenarioToWebhook } from "@/lib/webhook"
-import type { Product, Persona, Difficulty } from "@/lib/types"
+import type { Product, Persona, Difficulty, CallType } from "@/lib/types"
 import { DEFAULT_PRODUCTS, PERSONAS, DIFFICULTIES } from "@/lib/data"
 
 const STEPS = [
   { id: 1, name: "Product", description: "Choose what you're selling" },
-  { id: 2, name: "Buyer Persona", description: "Select your buyer type" },
-  { id: 3, name: "Difficulty", description: "Set challenge level" },
-  { id: 4, name: "Brief", description: "Review scenario details" },
+  { id: 2, name: "Call Type", description: "Select call scenario" },
+  { id: 3, name: "Buyer Persona", description: "Select your buyer type" },
+  { id: 4, name: "Difficulty", description: "Set challenge level" },
+  { id: 5, name: "Brief", description: "Review scenario details" },
 ]
 
 export default function TrainingSetup() {
@@ -29,89 +30,69 @@ export default function TrainingSetup() {
 
   const [currentStep, setCurrentStep] = useState(1)
   const [product, setProduct] = useState<Product | null>(null)
+  const [callType, setCallType] = useState<CallType | null>(null)
   const [persona, setPersona] = useState<Persona | null>(null)
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
   const [timeLimitMin, setTimeLimitMin] = useState<number>(0) // 0 = Unlimited, 1-60 minutes
 
-  const canProceed = useCallback(() => {
-    switch (currentStep) {
-      case 1:
-        return product !== null
-      case 2:
-        return persona !== null
-      case 3:
-        return difficulty !== null // time limit optional
-      case 4:
-        return product !== null && persona !== null && difficulty !== null
-      default:
-        return false
-    }
-  }, [currentStep, product, persona, difficulty])
-
-  const handleProductSelect = (p: Product) => {
-    setProduct(p)
-    // If it's a custom product, route to Buyer Persona page for AI/manual persona creation
-    if (p.id.startsWith("custom-")) {
-      setSelectedProduct({ id: p.id, name: p.name, description: p.description })
-      router.push("/train/persona")
-    }
-  }
+  console.log('[Setup] Component mounted with selections:', {
+    selectedProduct: product?.name,
+    selectedCallType: callType?.name,
+    selectedPersona: persona?.name,
+    selectedDifficulty: difficulty,
+    timeLimitMin
+  })
 
   const handleNext = async () => {
-    if (currentStep < 4) {
+    console.log('[Setup] Starting call setup...')
+    
+    if (currentStep < 5) {
       setCurrentStep(currentStep + 1)
       return
     }
 
-    // For the final step, create scenario and start call
+    // Final step - create scenario and navigate
     if (!product || !persona || !difficulty) {
-      console.error("Missing required scenario data")
+      console.error('[Setup] Missing required selections')
       return
     }
 
+    // Build scenario object
     const scenario = {
       product,
-      persona,
+      persona: persona.name,
       difficulty,
+      callType,
       brief: {
-        background: PERSONAS[persona].background,
-        pains: PERSONAS[persona].pains,
-        mindset: PERSONAS[persona].mindset,
+        background: persona.background,
+        pains: persona.pains,
+        mindset: persona.mindset,
       },
       timeLimitSec: timeLimitMin > 0 ? timeLimitMin * 60 : null,
     }
+    
+    console.log('[Setup] Built scenario:', scenario)
     
     try {
       // Generate session id for this call and persist in store
       const sid = typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : Math.random().toString(36).slice(2) + Date.now().toString(36)
+      
+      console.log('[Setup] Generated session ID:', sid)
       setSessionId(sid)
 
-      // Set the scenario in the store first to prevent race conditions
+      // Set the scenario in the store
       setScenario(scenario)
       
-      // Then send to webhook, including sessionId, and capture AI's first message
-      const result = await sendScenarioToWebhook(scenario, sid)
-      if (result.ok) {
-        const aiMsg =
-          (result.json && (result.json["AI output"] || result.json.message || result.json.text || result.json.reply)) ||
-          result.text ||
-          null
-        setInitialBuyerMessage(aiMsg)
-        console.log("Scenario data successfully sent to n8n")
-      } else {
-        setInitialBuyerMessage(null)
-        console.warn("Failed to send scenario data to n8n, but continuing with call")
-      }
+      console.log('[Setup] Scenario saved to store, navigating to chat...')
       
-      // Navigate to call page
-      router.push("/train/call")
+      // Navigate directly to chat page (no more n8n dependency)
+      router.push("/train/chat")
     } catch (error) {
-      console.error("Error in handleNext:", error)
-      // Even if webhook fails, we still want to proceed to the call
-      setInitialBuyerMessage(null)
-      router.push("/train/call")
+      console.error('[Setup] Error in handleNext:', error)
+      // Still proceed to chat even if there's an error
+      router.push("/train/chat")
     }
   }
 
@@ -121,41 +102,72 @@ export default function TrainingSetup() {
     }
   }
 
+  const canProceed = () => {
+    switch (currentStep) {
+      case 1: return !!product
+      case 2: return true // Call type is optional
+      case 3: return !!persona
+      case 4: return !!difficulty
+      case 5: return !!product && !!persona && !!difficulty
+      default: return false
+    }
+  }
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
         return (
-          <ProductSelector 
-            selectedProduct={product} 
-            onProductSelect={handleProductSelect} 
-            products={DEFAULT_PRODUCTS} 
+          <ProductSelector
+            products={DEFAULT_PRODUCTS}
+            selectedProduct={product}
+            onSelect={setProduct}
           />
         )
       case 2:
         return (
-          <PersonaSelector 
-            selectedPersona={persona} 
-            onPersonaSelect={setPersona} 
+          <CallTypeSelector
+            selectedCallType={callType}
+            onSelect={setCallType}
           />
         )
       case 3:
         return (
-          <DifficultySelector 
-            selectedDifficulty={difficulty} 
-            onDifficultySelect={setDifficulty} 
+          <PersonaSelector
+            personas={Object.entries(PERSONAS).map(([key, details]) => ({
+              id: key,
+              name: details.name,
+              description: details.description,
+              icon: details.icon,
+              background: details.background,
+              pains: details.pains,
+              mindset: details.mindset
+            }))}
+            selectedPersona={persona}
+            onSelect={setPersona}
           />
         )
       case 4:
-        if (!product || !persona || !difficulty) {
-          // This should never happen because canProceed() prevents reaching this step
-          return <div>Missing required information. Please go back and fill in all fields.</div>
-        }
+        return (
+          <DifficultySelector
+            difficulties={Object.entries(DIFFICULTIES).map(([key, details]) => ({
+              id: key,
+              name: details.name,
+              description: details.description,
+              level: key,
+              multiplier: details.multiplier
+            }))}
+            selectedDifficulty={difficulty}
+            onSelect={setDifficulty}
+          />
+        )
+      case 5:
         return (
           <div className="space-y-6">
-            <PreCallBrief 
-              product={product} 
-              persona={persona} 
-              difficulty={difficulty} 
+            <PreCallBrief
+              product={product}
+              callType={callType}
+              persona={persona}
+              difficulty={difficulty}
             />
             <div className="border rounded-md p-4">
               <div className="flex items-center justify-between mb-2">
@@ -188,7 +200,7 @@ export default function TrainingSetup() {
         onNext={handleNext}
         onBack={handleBack}
         canProceed={canProceed()}
-        nextLabel={currentStep === 4 ? "Start Call" : "Next"}
+        nextLabel={currentStep === 5 ? "Start Call" : "Next"}
       >
         {renderStepContent()}
       </WizardShell>
