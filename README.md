@@ -248,4 +248,5 @@ Currently none required for MVP. Future integrations will need:
 **Built with ❤️ for sales professionals who want to master their craft.**
 #   p i t c h p i l o t n e w  
  #   p i t c h p i l o t a l p h a . 1  
+ #   p i t c h p i l o t a l p h a . 1  
  
