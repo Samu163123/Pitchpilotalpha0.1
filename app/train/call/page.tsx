@@ -16,7 +16,7 @@ import { useScenarioStore, useCallStore, useHistoryStore, useProfileStore } from
 import { evaluateCall } from "@/lib/simulator"
 import { useToast } from "@/hooks/use-toast"
 import { sendAnalysisWebhook } from "@/lib/webhook"
-import { VoskController } from "@/lib/voskClient"
+// Vosk removed: STT for the Call page is temporarily disabled until Moonshine wiring
 
 export default function CallPage() {
   const router = useRouter()
@@ -36,7 +36,7 @@ export default function CallPage() {
   const [aiTyping, setAiTyping] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<"hints" | "notes">("hints")
   const initialAddedRef = useRef(false)
-  const voskRef = useRef<VoskController | null>(null)
+  // STT engine removed; placeholder until Moonshine integration
   // Inline error + resend support
   const [errorBelowTs, setErrorBelowTs] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
@@ -66,92 +66,10 @@ export default function CallPage() {
     }
   }, [scenario, isActive, startCall])
 
-  // Start/stop Vosk browser recognition when mic toggles
+  // STT engine removed: mic toggle currently has no effect until Moonshine is integrated
   useEffect(() => {
-    let cancelled = false
-    const start = async () => {
-      try {
-        setVoskReady(false)
-        const controller = new VoskController(["/models/vosk/model.tar.gz", "/models/vosk/model.tar"], {
-          onPartial: (partial) => {
-            if (autoSend) {
-              // In auto-send mode, just reflect the current partial
-              const p = (partial || "").trim()
-              if (p) setUserInput(p)
-              return
-            }
-            // Manual mode: show committed + current partial without erasing committed text
-            const p = (partial || "").trim()
-            if (p) {
-              // Cancel any pending commit and reschedule on new non-empty partial
-              if (partialCommitTimerRef.current) clearTimeout(partialCommitTimerRef.current)
-              lastPartialRef.current = p
-              const committed = speechCommittedRef.current
-              const combined = committed ? `${committed} ${p}` : p
-              setUserInput(combined)
-              // If user pauses ~800ms, commit the last partial to the buffer
-              partialCommitTimerRef.current = setTimeout(() => {
-                const lp = lastPartialRef.current.trim()
-                if (!lp) return
-                const curCommitted = speechCommittedRef.current
-                const nextCommitted = curCommitted ? `${curCommitted} ${lp}` : lp
-                speechCommittedRef.current = nextCommitted
-                setSpeechCommitted(nextCommitted)
-                setUserInput(nextCommitted)
-                lastPartialRef.current = ""
-              }, 800)
-            }
-          },
-          onResult: (text) => {
-            const finalText = (text || "").trim()
-            if (!finalText) return
-            if (autoSend) {
-              // Auto-send current finalized chunk
-              setUserInput(finalText)
-              handleSendMessage(finalText)
-              return
-            }
-            // Manual mode: append final chunk to committed buffer and reflect in input
-            const committed = speechCommittedRef.current
-            const nextCommitted = committed ? `${committed} ${finalText}` : finalText
-            setSpeechCommitted(nextCommitted)
-            speechCommittedRef.current = nextCommitted
-            setUserInput(nextCommitted)
-          },
-          onError: (e) => console.warn("[VOSK] error:", e),
-          onReady: () => {
-            console.debug("[VOSK] model ready")
-            setVoskReady(true)
-          },
-        })
-        voskRef.current = controller
-        await controller.start()
-      } catch (e) {
-        console.warn("[VOSK] failed to start:", e)
-      }
-    }
-
-    if (isRecording) {
-      start()
-    } else {
-      // stop
-      if (voskRef.current) {
-        voskRef.current.stop().catch(() => undefined)
-        voskRef.current = null
-      }
-      setVoskReady(false)
-    }
-    return () => {
-      if (cancelled) return
-      cancelled = true
-      if (voskRef.current) {
-        voskRef.current.stop().catch(() => undefined)
-        voskRef.current = null
-      }
-      setVoskReady(false)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecording, autoSend])
+    setVoskReady(false)
+  }, [isRecording])
 
   useEffect(() => {
     if (!scenario) return
@@ -626,13 +544,7 @@ export default function CallPage() {
     if (typeof speechCommittedRef !== "undefined") {
       speechCommittedRef.current = value
     }
-    if (typeof lastPartialRef !== "undefined") {
-      lastPartialRef.current = ""
-    }
-    if (typeof partialCommitTimerRef !== "undefined" && partialCommitTimerRef.current) {
-      clearTimeout(partialCommitTimerRef.current)
-      partialCommitTimerRef.current = null
-    }
+    // Vosk-specific partial timers removed
   }, [])
 
   // Show analysis loader when waiting for webhook

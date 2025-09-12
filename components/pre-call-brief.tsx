@@ -2,14 +2,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { User, Target, Zap, Package, Phone, Clock } from "lucide-react"
-import type { Product, Persona, Difficulty, CallType } from "@/lib/types"
+import type { Product, PersonaSelection, DifficultyValue, CallType } from "@/lib/types"
 import { PERSONAS, DIFFICULTIES } from "@/lib/data"
+import { Slider } from "@/components/ui/slider"
 
 interface PreCallBriefProps {
   product: Product | null
   callType?: CallType | null
-  persona: Persona | null
-  difficulty: Difficulty | null
+  persona: PersonaSelection | null
+  difficulty: DifficultyValue | null
   timeLimitMin?: number
   onTimeLimitChange?: (value: number) => void
 }
@@ -97,11 +98,11 @@ export function PreCallBrief({
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <div className="font-medium">{persona.name}</div>
-              <div className="text-sm text-muted-foreground">{persona.background}</div>
+              <div className="font-medium">{typeof persona === 'string' ? PERSONAS[persona]?.name ?? persona : persona.name}</div>
+              <div className="text-sm text-muted-foreground">{typeof persona === 'string' ? PERSONAS[persona]?.background : persona.background}</div>
               <div className="space-y-1">
                 <div className="text-xs font-medium text-primary">Pain Points:</div>
-                <div className="text-xs text-muted-foreground">{persona.pains}</div>
+                <div className="text-xs text-muted-foreground">{typeof persona === 'string' ? PERSONAS[persona]?.pains?.join(', ') : persona.pains.join(', ')}</div>
               </div>
             </div>
           </CardContent>
@@ -117,12 +118,12 @@ export function PreCallBrief({
           <CardContent>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="font-medium">{difficulty.name}</div>
-                <Badge variant={difficulty.level === 'easy' ? 'secondary' : difficulty.level === 'medium' ? 'default' : 'destructive'}>
-                  {difficulty.level}
+                <div className="font-medium">{typeof difficulty === 'string' ? DIFFICULTIES[difficulty].name : difficulty.name}</div>
+                <Badge variant={(typeof difficulty === 'string' ? difficulty : difficulty.level) === 'easy' ? 'secondary' : (typeof difficulty === 'string' ? difficulty : difficulty.level) === 'medium' ? 'default' : 'destructive'}>
+                  {typeof difficulty === 'string' ? difficulty : difficulty.level}
                 </Badge>
               </div>
-              <div className="text-sm text-muted-foreground">{difficulty.description}</div>
+              <div className="text-sm text-muted-foreground">{typeof difficulty === 'string' ? DIFFICULTIES[difficulty].description : difficulty.description}</div>
             </div>
           </CardContent>
         </Card>

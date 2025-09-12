@@ -16,7 +16,8 @@ interface SidePanelProps {
 const SidePanel = ({ messages, product, persona, onPasteToInput }: SidePanelProps) => {
   const [activeTab, setActiveTab] = useState('coach');
   const [notes, setNotes] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  type SuggestionPair = { head: string; ex?: string };
+  const [suggestions, setSuggestions] = useState<SuggestionPair[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Auto-note taking for key buyer statements
@@ -51,7 +52,8 @@ const SidePanel = ({ messages, product, persona, onPasteToInput }: SidePanelProp
       { regex: /(?:need approval|check with|discuss with).{0,40}/gi, category: 'Authority', icon: '👥' }
     ];
     
-    const matches = [];
+    type BuyerNote = { text: string; category: string; icon: string; timestamp: string };
+    const matches: BuyerNote[] = [];
     for (const pattern of patterns) {
       const found = content.match(pattern.regex);
       if (found) {
@@ -105,18 +107,32 @@ const SidePanel = ({ messages, product, persona, onPasteToInput }: SidePanelProp
       }
 
       const data = await response.json();
-      
-      // Parse the formatted suggestions
-      const suggestionText = data.suggestions;
-      const parsedSuggestions = suggestionText
-        .split('\\n')
-        .filter((line: string) => line.trim() !== '')
-        .map((line: string) => line.trim());
-      
-      setSuggestions(parsedSuggestions);
+      const suggestionText: string = data.suggestions || '';
+
+      // Robust parsing: group into pairs (headline + quoted example)
+      const lines = suggestionText
+        .split(/\r?\n/)
+        .map((l: string) => l.trim())
+        .filter((l: string) => l.length > 0);
+
+      const pairs: SuggestionPair[] = [];
+      for (let i = 0; i < lines.length; i++) {
+        const head = lines[i];
+        // skip if the line is an orphan quote
+        if (head.startsWith('"') && head.endsWith('"')) continue;
+        let ex: string | undefined = undefined;
+        const next = lines[i + 1];
+        if (next && next.startsWith('"') && next.endsWith('"')) {
+          ex = next.replace(/^"|"$/g, '');
+          i += 1;
+        }
+        pairs.push({ head, ex });
+      }
+
+      setSuggestions(pairs);
     } catch (error) {
       console.error('Error getting suggestions:', error);
-      setSuggestions(['Unable to get suggestions. Please try again.']);
+      setSuggestions([{ head: 'Unable to get suggestions. Please try again.', ex: undefined }]);
     } finally {
       setLoadingSuggestions(false);
     }
@@ -165,30 +181,28 @@ const SidePanel = ({ messages, product, persona, onPasteToInput }: SidePanelProp
               <div className="space-y-2">
                 <h4 className="text-sm font-medium">Suggestions:</h4>
                 <div className="space-y-3">
-                  {suggestions.map((suggestion, index) => {
-                    const isQuote = suggestion.startsWith('"') && suggestion.endsWith('"');
-                    return (
-                      <div key={index} className={`text-xs p-2 rounded ${
-                        isQuote 
-                          ? 'bg-green-50 dark:bg-green-900/20 border-l-2 border-green-200 dark:border-green-800 italic' 
-                          : 'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-200 dark:border-blue-800 font-medium'
-                      }`}>
-                        <div className="flex justify-between items-start gap-2">
-                          <span className="flex-1">{suggestion}</span>
-                          {isQuote && (
+                  {suggestions.map((pair, index) => (
+                    <div key={index} className="space-y-1">
+                      <div className="text-xs p-2 rounded bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-200 dark:border-blue-800 font-medium">
+                        <span className="flex-1 block">{pair.head}</span>
+                      </div>
+                      {pair.ex && (
+                        <div className="text-xs p-2 rounded bg-green-50 dark:bg-green-900/20 border-l-2 border-green-200 dark:border-green-800 italic">
+                          <div className="flex justify-between items-start gap-2">
+                            <span className="flex-1">“{pair.ex}”</span>
                             <Button
                               size="sm"
                               variant="ghost"
                               className="h-6 px-2 text-xs"
-                              onClick={() => onPasteToInput(suggestion.slice(1, -1))}
+                              onClick={() => onPasteToInput(pair.ex!)}
                             >
                               Paste
                             </Button>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

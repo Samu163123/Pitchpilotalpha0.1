@@ -1,80 +1,110 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { NextResponse } from "next/server"
+import OpenAI from "openai"
 
 export const runtime = "nodejs"
 
-// Simple in-memory audio queue per session
-// Each item stores raw bytes and the upstream content-type
-export const audioQueue: Map<string, Array<{ bytes: Buffer; contentType: string }>> = (global as any)._ttsAudioQueue || new Map()
-;(global as any)._ttsAudioQueue = audioQueue
-
-// Proxy POST to external TTS uploader that returns audio. Kept server-side to avoid CORS.
-const REMOTE_TTS_BASE = "https://56c1027c07d4.ngrok-free.app/upload?sid="
-
-export async function GET(req: Request) {
+// POST /api/tts
+// Body: { text: string; voice?: string; format?: "mp3"|"wav"|"ogg"|"flac"|"opus" }
+// Returns synthesized audio using OpenAI TTS (tts-1) with default Alloy voice.
+export async function POST(req: Request) {
   try {
-    const url = new URL(req.url)
-    const sid = url.searchParams.get("sid") || ""
-    const consume = (url.searchParams.get("consume") ?? "1") !== "0"
-    if (!sid) {
-      return NextResponse.json({ error: "missing_sid", message: "Query param 'sid' is required." }, { status: 400 })
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) {
+      return NextResponse.json(
+        {
+          error: "missing_openai_key",
+          message: "OPENAI_API_KEY is not set. Please add it to your .env.local file.",
+        },
+        { status: 500 }
+      )
     }
-    const q = audioQueue.get(sid)
-    if (!q || q.length === 0) {
-      return NextResponse.json({ error: "no_audio", message: "No queued audio for this sid." }, { status: 404 })
+
+    let text = ""
+    let voice = "alloy"
+    let format: "mp3" | "wav" | "flac" | "opus" | "aac" | "pcm" = "mp3"
+
+    const contentType = req.headers.get("content-type") || ""
+    if (contentType.includes("application/json")) {
+      const body = await req.json().catch(() => ({} as any))
+      text = body?.text ?? ""
+      voice = body?.voice || voice
+      if (body?.format) format = body.format
+    } else {
+      // support GET-like fallback via query param for convenience
+      const url = new URL(req.url)
+      text = url.searchParams.get("text") || ""
+      voice = url.searchParams.get("voice") || voice
+      const f = url.searchParams.get("format") as any
+      if (f) format = f
     }
-    const item = consume ? q.shift()! : q[0]
-    if (consume && q.length === 0) audioQueue.delete(sid)
-    return new NextResponse(item.bytes, {
-      status: 200,
-      headers: { "content-type": item.contentType || "audio/mpeg" },
+
+    // Validate/normalize format
+    const allowed = new Set(["mp3", "wav", "flac", "opus", "aac", "pcm"] as const)
+    if (!allowed.has(format as any)) {
+      format = "mp3"
+    }
+
+    if (!text || typeof text !== "string") {
+      return NextResponse.json(
+        { error: "missing_text", message: "Provide a text string to synthesize in the request body or query." },
+        { status: 400 }
+      )
+    }
+
+    const openai = new OpenAI({ apiKey })
+
+    // Debug: log request parameters (omit raw text)
+    console.debug("[api/tts] Synth start", {
+      textLength: text.length,
+      voice,
+      format,
     })
+
+    const response = await openai.audio.speech.create({
+      model: "tts-1",
+      voice,
+      input: text,
+      response_format: format,
+    })
+
+    const arrayBuffer = await response.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    const contentTypeOut =
+      format === "mp3"
+        ? "audio/mpeg"
+        : format === "wav"
+        ? "audio/wav"
+        : format === "flac"
+        ? "audio/flac"
+        : format === "opus"
+        ? "audio/opus"
+        : format === "aac"
+        ? "audio/aac"
+        : "audio/L16" // pcm
+
+    const res = new NextResponse(buffer, {
+      status: 200,
+      headers: {
+        "content-type": contentTypeOut,
+        "cache-control": "no-store",
+      },
+    })
+    console.debug("[api/tts] Synth success", { bytes: buffer.byteLength, contentType: contentTypeOut })
+    return res
   } catch (e: any) {
-    return NextResponse.json({ error: "pull_failed", message: String(e?.message || e) }, { status: 500 })
+    const status = (e?.status as number) || (e?.response?.status as number) || 500
+    const detail = e?.response?.data || e?.error || e?.message || String(e)
+    console.error("[api/tts] Synth error", { status, detail })
+    return NextResponse.json(
+      { error: "tts_failed", message: typeof detail === 'string' ? detail : JSON.stringify(detail) },
+      { status }
+    )
   }
 }
 
-export async function POST(req: Request) {
-  try {
-    const url = new URL(req.url)
-    const sid = url.searchParams.get("sid") || ""
-    if (!sid) {
-      return NextResponse.json({ error: "missing_sid", message: "Query param 'sid' is required." }, { status: 400 })
-    }
-
-    // Prefer forwarding the body verbatim (supports binary/form-data/json). If no body, allow text via query param.
-    let upstreamBody: BodyInit | null = null
-    let contentType = req.headers.get("content-type") || undefined
-
-    const bodyArrayBuffer = await req.arrayBuffer().catch(() => undefined)
-    if (bodyArrayBuffer && bodyArrayBuffer.byteLength > 0) {
-      upstreamBody = Buffer.from(bodyArrayBuffer)
-    } else {
-      const text = url.searchParams.get("text")
-      if (text) {
-        upstreamBody = JSON.stringify({ text })
-        contentType = "application/json"
-      }
-    }
-
-    const upstreamUrl = REMOTE_TTS_BASE + encodeURIComponent(sid)
-    const upstream = await fetch(upstreamUrl, {
-      method: "POST",
-      headers: contentType ? { "Content-Type": contentType } : undefined,
-      body: upstreamBody,
-      cache: "no-store",
-    })
-
-    const upstreamContentType = upstream.headers.get("content-type") || "application/octet-stream"
-    const buffer = await upstream.arrayBuffer()
-
-    return new NextResponse(buffer, {
-      status: upstream.status,
-      headers: {
-        "content-type": upstreamContentType,
-      },
-    })
-  } catch (e: any) {
-    return NextResponse.json({ error: "proxy_failed", message: String(e?.message || e) }, { status: 502 })
-  }
+// Optional: simple info handler for GET
+export async function GET() {
+  return NextResponse.json({ ok: true, provider: "openai", model: "tts-1", defaultVoice: "alloy" })
 }

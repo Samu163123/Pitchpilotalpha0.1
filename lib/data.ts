@@ -59,12 +59,179 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyDetails> = {
 
 export const DEFAULT_PRODUCTS: Product[] = [
   {
-    id: "eco-bottle",
-    name: "Eco-friendly Water Bottle",
-    description:
-      "Premium stainless steel water bottle with temperature control technology. Keeps drinks cold for 24 hours, hot for 12 hours. Made from 100% recycled materials with a lifetime warranty.",
+    id: "custom-crm-niche",
+    name: "Custom CRM for Niche Businesses",
+    description: "Simplified CRM tailored to niches like dental clinics, gyms, and salons.",
+  },
+  {
+    id: "automated-marketing-funnels",
+    name: "Automated Marketing Funnels",
+    description: "Ready-made email/SMS/WhatsApp funnels for small businesses.",
+  },
+  {
+    id: "virtual-event-management",
+    name: "Virtual Event Management Services",
+    description: "Plan and run webinars, workshops, and online conferences.",
+  },
+  {
+    id: "social-media-management",
+    name: "Social Media Management Packages",
+    description: "Full-service posting, engagement, and ads management.",
+  },
+  {
+    id: "ecommerce-store-setup",
+    name: "E-commerce Store Setup",
+    description: "Shopify or WooCommerce store setup for niche products.",
+  },
+  {
+    id: "subscription-box-services",
+    name: "Subscription Box Services",
+    description: "Curated boxes for audiences like pet toys, fitness snacks, or hobby kits.",
+  },
+  {
+    id: "local-lead-generation",
+    name: "Local Lead Generation Services",
+    description: "Pre-qualified local leads for small businesses.",
+  },
+  {
+    id: "custom-saas-tools",
+    name: "Custom SaaS for Small Operations",
+    description: "Simple tools like inventory, booking, or invoicing systems.",
+  },
+  {
+    id: "online-course-creation",
+    name: "Online Course Creation & Hosting",
+    description: "Create, host, and sell professional courses.",
+  },
+  {
+    id: "b2b-automation-scripts",
+    name: "B2B Automation Scripts",
+    description: "Automations for tasks like data scraping and outreach.",
   },
 ]
+
+// Product-specific buyer personas (4 per product)
+export const PRODUCT_PERSONAS: Record<string, Array<{
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  background: string;
+  pains: string[];
+  mindset: string;
+}>> = {
+  // 1. Custom CRM for Niche Businesses
+  'custom-crm-niche': [
+    {
+      id: 'carla-clinic-manager',
+      name: 'Clinic Manager Carla',
+      description: 'Dental clinic manager needing smoother scheduling.',
+      icon: '🦷',
+      background: 'Age 38, runs a dental clinic focused on patient experience and operational efficiency.',
+      pains: ['Scheduling chaos', 'Missed patient follow-ups'],
+      mindset: 'Wants automated reminders and streamlined appointment flow.'
+    },
+    {
+      id: 'greg-gym-owner',
+      name: 'Gym Owner Greg',
+      description: 'Small fitness studio owner tracking renewals manually.',
+      icon: '🏋️‍♂️',
+      background: 'Age 30, runs a boutique gym with growing membership base.',
+      pains: ['Membership tracking is manual', 'Renewals slip through cracks'],
+      mindset: 'Increase retention with automated comms and alerts.'
+    },
+    {
+      id: 'sara-salon-owner',
+      name: 'Salon Owner Sara',
+      description: 'Salon owner losing repeat clients.',
+      icon: '💇‍♀️',
+      background: 'Age 42, hair & beauty salon with steady local clientele.',
+      pains: ['Losing repeat clients', 'No personalized outreach'],
+      mindset: 'Run targeted, personalized campaigns to bring clients back.'
+    },
+    {
+      id: 'ryan-real-estate',
+      name: 'Real Estate Agent Ryan',
+      description: 'Agent juggling leads from multiple channels.',
+      icon: '🏠',
+      background: 'Age 35, real estate office with mixed lead sources.',
+      pains: ['Leads scattered across systems'],
+      mindset: 'Centralize contacts and automate follow-ups.'
+    },
+  ],
+
+  // 2. Automated Marketing Funnels
+  'automated-marketing-funnels': [
+    { id: 'emma-ecom', name: 'E-commerce Entrepreneur Emma', description: 'Jewelry shop owner with low email engagement.', icon: '💍', background: 'Age 28, runs an online jewelry store.', pains: ['Low email engagement'], mindset: 'Boost sales with automated campaigns.' },
+    { id: 'felix-fitness-coach', name: 'Fitness Coach Felix', description: 'Online coach struggling to nurture leads.', icon: '🏃‍♂️', background: 'Age 33, sells online coaching programs.', pains: ['Manual lead nurturing is time-consuming'], mindset: 'Scale acquisition with automated funnels.' },
+    { id: 'sam-saas-founder', name: 'SaaS Founder Sam', description: 'Productivity app founder with manual onboarding.', icon: '🧩', background: 'Age 40, runs a SaaS productivity app.', pains: ['Onboarding too manual'], mindset: 'Automate onboarding with drip campaigns.' },
+    { id: 'bella-bakery', name: 'Local Bakery Bella', description: 'Cafe owner wants to retain local customers.', icon: '🥐', background: 'Age 37, small café & local delivery.', pains: ['Poor customer retention'], mindset: 'Run weekly promos via automated messaging.' },
+  ],
+
+  // 3. Virtual Event Management Services
+  'virtual-event-management': [
+    { id: 'amanda-association', name: 'Association Amanda', description: 'Trade association leader needing pro events.', icon: '🏛️', background: 'Age 45, manages a trade association.', pains: ['Low-quality virtual conferences'], mindset: 'Achieve a professional online presence.' },
+    { id: 'steve-startup', name: 'Startup Founder Steve', description: 'SaaS founder with low launch attendance.', icon: '🚀', background: 'Age 32, leads a SaaS startup.', pains: ['Poor attendance on launches'], mindset: 'Professional webinar management.' },
+    { id: 'helen-hr', name: 'HR Manager Helen', description: 'Struggling with boring training sessions.', icon: '🧑‍💼', background: 'Age 39, HR in mid-size company.', pains: ['Boring, low-turnout trainings'], mindset: 'Interactive online training events.' },
+    { id: 'chris-community', name: 'Community Organizer Chris', description: 'NGO events struggle online.', icon: '🤝', background: 'Age 50, local NGO organizer.', pains: ['Fundraising events underperform online'], mindset: 'Smooth, high-quality virtual events.' },
+  ],
+
+  // 4. Social Media Management Packages
+  'social-media-management': [
+    { id: 'bella-boutique', name: 'Boutique Owner Bella', description: 'Clothing boutique owner can’t post consistently.', icon: '👗', background: 'Age 29, runs a boutique store.', pains: ['Inconsistent posting'], mindset: 'Drive foot traffic and online sales.' },
+    { id: 'ryan-restaurant', name: 'Restaurant Owner Ryan', description: 'Family restaurant with low engagement.', icon: '🍝', background: 'Age 41, runs a family restaurant.', pains: ['Low social engagement'], mindset: 'Promote specials and attract customers.' },
+    { id: 'rachel-real-estate', name: 'Real Estate Agent Rachel', description: 'Agent needs more online leads.', icon: '🏘️', background: 'Age 36, real estate agent.', pains: ['Not enough online leads'], mindset: 'Build brand on Instagram & LinkedIn.' },
+    { id: 'fiona-fitness', name: 'Fitness Coach Fiona', description: 'Personal trainer can’t keep daily content.', icon: '🧘‍♀️', background: 'Age 30, personal training business.', pains: ['Cannot maintain content cadence'], mindset: 'Grow following and attract clients.' },
+  ],
+
+  // 5. E-commerce Store Setup
+  'ecommerce-store-setup': [
+    { id: 'alice-artisan', name: 'Local Artisan Alice', description: 'Handmade candles seller offline only.', icon: '🕯️', background: 'Age 34, artisan maker.', pains: ['No online store'], mindset: 'Launch shop quickly.' },
+    { id: 'fred-fitness-gear', name: 'Fitness Gear Fred', description: 'Gym apparel brand without ecom experience.', icon: '👟', background: 'Age 29, gym apparel line.', pains: ['No e-commerce experience'], mindset: 'Sell online to wider audience.' },
+    { id: 'paul-pet-store', name: 'Pet Store Owner Paul', description: 'Local pet shop with limited reach.', icon: '🐶', background: 'Age 40, neighborhood pet shop.', pains: ['Limited reach'], mindset: 'Enable online orders and delivery.' },
+    { id: 'hannah-hobbyist', name: 'Hobbyist Hannah', description: 'DIY kits seller finds platforms complex.', icon: '🧰', background: 'Age 27, DIY kits creator.', pains: ['Platforms too complex'], mindset: 'Simple Shopify/WooCommerce setup.' },
+  ],
+
+  // 6. Subscription Box Services
+  'subscription-box-services': [
+    { id: 'frank-fitness', name: 'Fitness Enthusiast Frank', description: 'Needs recurring revenue from audience.', icon: '📦', background: 'Age 32, fitness content brand.', pains: ['Hard to monetize content'], mindset: 'Monthly fitness product box.' },
+    { id: 'paula-pet-lover', name: 'Pet Lover Paula', description: 'Wants repeat pet product customers.', icon: '🐾', background: 'Age 37, pet toys & treats business.', pains: ['Repeat purchases are hard'], mindset: 'Monthly pet owner subscriptions.' },
+    { id: 'fiona-food-blogger', name: 'Food Blogger Fiona', description: 'Seeks recurring income.', icon: '🥗', background: 'Age 29, healthy snacks blogger.', pains: ['Low recurring revenue'], mindset: 'Monthly snack boxes.' },
+    { id: 'harry-hobbyist', name: 'Hobbyist Harry', description: 'Sells seasonal DIY kits only.', icon: '🧵', background: 'Age 35, DIY & crafting kits.', pains: ['Seasonal revenue spikes'], mindset: 'Recurring monthly boxes.' },
+  ],
+
+  // 7. Local Lead Generation Services
+  'local-lead-generation': [
+    { id: 'larry-landscaping', name: 'Landscaping Larry', description: 'Lawn care business needs more locals.', icon: '🌿', background: 'Age 42, lawn care services.', pains: ['Few local customers'], mindset: 'Get pre-qualified homeowner leads.' },
+    { id: 'cindy-contractor', name: 'Contractor Cindy', description: 'Small construction company wastes time.', icon: '🏗️', background: 'Age 38, local contractor.', pains: ['Chasing cold leads'], mindset: 'Receive ready-to-call leads.' },
+    { id: 'rachel-real-estate-llg', name: 'Real Estate Agent Rachel', description: 'Struggles to find motivated buyers.', icon: '🏡', background: 'Age 36, real estate.', pains: ['Low buyer quality'], mindset: 'More listings and sales.' },
+    { id: 'ian-insurance', name: 'Insurance Broker Ian', description: 'Lead acquisition is costly.', icon: '🛡️', background: 'Age 45, health & life insurance.', pains: ['High acquisition cost'], mindset: 'Quality leads for calls.' },
+  ],
+
+  // 8. Custom SaaS for Small Operations
+  'custom-saas-tools': [
+    { id: 'betty-boutique', name: 'Boutique Owner Betty', description: 'Tracks inventory manually.', icon: '🛍️', background: 'Age 31, clothing boutique.', pains: ['Manual inventory tracking'], mindset: 'Simple inventory tool.' },
+    { id: 'frank-fitness-studio', name: 'Fitness Studio Owner Frank', description: 'Books classes manually.', icon: '📅', background: 'Age 33, gym studio.', pains: ['Manual class bookings'], mindset: 'Online scheduling system.' },
+    { id: 'fiona-freelancer', name: 'Freelancer Fiona', description: 'Invoices and projects hard to track.', icon: '🎨', background: 'Age 28, graphic designer.', pains: ['Messy invoicing & projects'], mindset: 'Easy invoicing + project tracking.' },
+    { id: 'carl-cafe', name: 'Café Owner Carl', description: 'Manages orders and suppliers by hand.', icon: '☕', background: 'Age 40, café owner.', pains: ['Manual orders & suppliers'], mindset: 'Streamlined ops dashboard.' },
+  ],
+
+  // 9. Online Course Creation & Hosting
+  'online-course-creation': [
+    { id: 'fiona-fitness-course', name: 'Fitness Coach Fiona', description: 'Can’t scale 1:1 coaching.', icon: '🏅', background: 'Age 30, personal training.', pains: ['Limited scale 1:1'], mindset: 'Sell pre-recorded classes.' },
+    { id: 'liam-language', name: 'Language Teacher Liam', description: 'Has limited student capacity.', icon: '🗣️', background: 'Age 35, online lessons.', pains: ['Limited capacity'], mindset: 'Create scalable language courses.' },
+    { id: 'maya-marketing', name: 'Marketing Expert Maya', description: '1:1 consulting caps income.', icon: '📈', background: 'Age 38, marketing consultant.', pains: ['Time-for-money limit'], mindset: 'Build online course revenue.' },
+    { id: 'hannah-hobbyist-course', name: 'Hobbyist Hannah', description: 'Local classes limit reach.', icon: '🧶', background: 'Age 27, crafting classes.', pains: ['Small local audience'], mindset: 'Sell globally online.' },
+  ],
+
+  // 10. B2B Automation Scripts
+  'b2b-automation-scripts': [
+    { id: 'alan-agency', name: 'Small Agency Owner Alan', description: 'Manual email outreach is repetitive.', icon: '📣', background: 'Age 33, digital marketing agency.', pains: ['Repetitive outreach'], mindset: 'Automate prospecting.' },
+    { id: 'rachel-real-estate-b2b', name: 'Real Estate Agent Rachel', description: 'Sends updates to many clients manually.', icon: '🏚️', background: 'Age 36, real estate.', pains: ['Manual reminders & follow-ups'], mindset: 'Automate reminders & follow-ups.' },
+    { id: 'amy-accountant', name: 'Accountant Amy', description: 'Tracks invoices by hand.', icon: '🧮', background: 'Age 42, small accounting firm.', pains: ['Manual invoice tracking'], mindset: 'Scripted tracking + notifications.' },
+    { id: 'ethan-ecommerce', name: 'E-commerce Store Owner Ethan', description: 'Needs to sync inventory across channels.', icon: '📦', background: 'Age 29, online store.', pains: ['Stock not in sync'], mindset: 'Automate stock and orders sync.' },
+  ],
+}
 
 export const BUYER_RESPONSES = {
   friendly: {

@@ -1,6 +1,30 @@
 export type Persona = "friendly" | "skeptical" | "busy" | "budget"
 export type Difficulty = "easy" | "medium" | "hard"
 
+// Allow rich personas used by product-specific selections
+export interface BuyerPersona {
+  id: string
+  name: string
+  description: string
+  icon: string
+  background: string
+  pains: string[]
+  mindset: string
+}
+
+export type PersonaSelection = Persona | BuyerPersona
+
+// Allow UI difficulty objects as well as string levels
+export interface UIDifficulty {
+  id: string
+  name: string
+  description: string
+  level: Difficulty
+  multiplier: number
+}
+
+export type DifficultyValue = Difficulty | UIDifficulty
+
 export interface PersonaDetails {
   name: string
   description: string
@@ -34,8 +58,8 @@ export interface CallType {
 
 export interface Scenario {
   product: Product
-  persona: Persona
-  difficulty: Difficulty
+  persona: PersonaSelection
+  difficulty: DifficultyValue
   callType?: CallType
   brief: {
     background: string

@@ -21,29 +21,75 @@ export async function POST(request: NextRequest) {
       .map((msg: any) => `${msg.role === 'user' ? 'Salesperson' : 'Prospect'}: ${msg.content}`)
       .join('\n');
 
+    // Identify the latest Prospect (assistant) message to bias suggestions toward the most recent objection/context
+    const latestProspectMsg = [...messages].reverse().find((m: any) => m.role !== 'user')?.content || '';
+
     const callType = scenarioSettings?.callType;
-    const userPrompt = `Transcript: ${transcript}, Product: ${product?.name || 'Unknown Product'}: ${product?.description || 'No description available'}. Buyer profile: ${persona?.personaName || 'Unknown'}, ${persona?.background || ''}, ${persona?.painPoints || ''}, ${persona?.mindset || ''}${callType ? `. Call Type: ${callType.name} - ${callType.description}. Goal: ${callType.goal}` : ''}`;
+    const userPrompt = `Transcript: ${transcript}\nLatest prospect message: ${latestProspectMsg}\nProduct: ${product?.name || 'Unknown Product'} - ${product?.description || 'No description available'}\nBuyer profile: ${persona?.personaName || 'Unknown'}; Background: ${persona?.background || ''}; Pains: ${persona?.painPoints || ''}; Mindset: ${persona?.mindset || ''}${callType ? `\nCall Type: ${callType.name} - ${callType.description}. Goal: ${callType.goal}` : ''}`;
 
-    const systemPrompt = `You are a sales coach AI. Based on the current conversation between the user and a prospect, provide tailored coaching suggestions that help the user improve their sales approach. Suggestions should be short, actionable, and in the style of professional sales coaching (e.g., 'Listen for pain points and acknowledge them before presenting your solution,' 'Use the Feel, Felt, Found technique to handle objections,' 'Create urgency with a compelling reason to act now'). Always generate 2–3 relevant suggestions. After the suggestions, provide one complete next sentence the user could say to the prospect, written in a natural and persuasive tone that fits the ongoing conversation. You should provide each complete sentence after the corresponding suggestion. You are going to provide a list of suggestions. Format the output exactly as follows:
+    const systemPrompt = `You are a senior sales coach AI. Generate suggestions that are:
+• Targeted to the most recent prospect objection or concern (use the Latest prospect message as the main signal).
+• Natural, conversational, and not pushy or hypey. Avoid jargon and over-selling.
+• Actionable in 1–2 short sentences, favoring consultative questions and mirroring language.
+• Influenced by proven approaches: Jeremy Miner's NEPQ (diagnostic questions), Alex Hormozi's value math (clarify outcomes and constraints), Simon Squibb's empathetic listening (reflect and validate), Grant Cardone's certainty and next steps (clear CTAs without pressure).
 
-1. Write the main suggestion.  
-2. On the next line, write an example sentence in quotes that illustrates the suggestion.  
-3. Separate each suggestion + example sentence pair with \\n.  
-4. Do NOT include labels like "the suggestion" or extra explanations.  
-5. Repeat this format for all suggestions.  
+Guidelines:
+• Start by acknowledging and labeling the objection or concern when relevant.
+• Prefer questions that progress discovery (problem, impact, timeline, authority, budget) over pitching features.
+• Tie recommendations to the stated pains and the product's outcomes. Keep it specific to context.
+• Keep tone calm, professional, and collaborative.
+• Generate exactly 2 suggestions.
 
-Output only in this format, no extra text. For example:
+Formatting rules (strict):
+1. Write the main suggestion on one line.
+2. On the next line, write a natural example sentence in quotes that the salesperson could say next.
+3. Separate each suggestion + example pair with a single newline.
+4. Do NOT include extra commentary, numbering, headers, or explanations.
 
-[Main suggestion 1] \\n
-"[Example sentence 1]" \\n
-[Main suggestion 2] \\n
-"[Example sentence 2]" \\n
-...`;
+Output only in this exact format. Example:
+[Main suggestion 1]\n
+"[Example sentence 1]"\n
+[Main suggestion 2]\n
+"[Example sentence 2]"`;
 
     const result = await model.generateContent(systemPrompt + '\n\n' + userPrompt);
 
     const response = await result.response;
-    const suggestions = response.text();
+    const raw = response.text();
+
+    // Post-process to strictly keep exactly 2 suggestion blocks (headline + example)
+    const lines = raw
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    const pairs: { head: string; ex?: string }[] = [];
+    for (let i = 0; i < lines.length && pairs.length < 2; i++) {
+      const head = lines[i];
+      if (head.startsWith('"') && head.endsWith('"')) {
+        // skip orphan example
+        continue;
+      }
+      let ex: string | undefined = undefined;
+      const next = lines[i + 1];
+      if (next && next.startsWith('"') && next.endsWith('"')) {
+        ex = next;
+        i += 1;
+      }
+      pairs.push({ head, ex });
+    }
+
+    // Fallback: if less than 2 pairs, pad with simple discovery prompts
+    while (pairs.length < 2) {
+      pairs.push({
+        head: 'Ask a concise discovery question tied to their last concern.',
+        ex: '"Just so I understand correctly, what would need to be true for this to feel like a clear win for you?"',
+      });
+    }
+
+    const suggestions = pairs
+      .map((p) => `${p.head}\n${p.ex ?? '"Can you share a bit more about that so I don\'t make assumptions?"'}`)
+      .join('\n\n');
 
     return NextResponse.json({ suggestions });
   } catch (error) {

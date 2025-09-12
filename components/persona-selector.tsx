@@ -2,13 +2,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import type { Persona } from "@/lib/types"
-import { PERSONAS } from "@/lib/data"
+
+type PersonaItem = { id: string; name: string; description: string; icon: string; background: string; pains: string[]; mindset: string }
 
 interface PersonaSelectorProps {
-  selectedPersona: Persona | null
-  onSelect: (persona: Persona) => void
-  personas: Persona[]
+  selectedPersona: PersonaItem | null
+  onSelect: (persona: PersonaItem) => void
+  personas: PersonaItem[]
 }
 
 export function PersonaSelector({ selectedPersona, onSelect, personas }: PersonaSelectorProps) {

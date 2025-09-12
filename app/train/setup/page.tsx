@@ -11,8 +11,8 @@ import { CallTypeSelector } from "@/components/call-type-selector"
 import { PreCallBrief } from "@/components/pre-call-brief"
 import { useScenarioStore, useCallStore } from "@/lib/store"
 import { useSetupSelectionStore } from "@/lib/store"
-import type { Product, Persona, Difficulty, CallType } from "@/lib/types"
-import { DEFAULT_PRODUCTS, PERSONAS, DIFFICULTIES } from "@/lib/data"
+import type { Product, CallType } from "@/lib/types"
+import { DEFAULT_PRODUCTS, PRODUCT_PERSONAS, DIFFICULTIES } from "@/lib/data"
 
 const STEPS = [
   { id: 1, name: "Product", description: "Choose what you're selling" },
@@ -31,8 +31,10 @@ export default function TrainingSetup() {
   const [currentStep, setCurrentStep] = useState(1)
   const [product, setProduct] = useState<Product | null>(null)
   const [callType, setCallType] = useState<CallType | null>(null)
-  const [persona, setPersona] = useState<Persona | null>(null)
-  const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
+  type UIBuyerPersona = { id: string; name: string; description: string; icon: string; background: string; pains: string[]; mindset: string }
+  const [persona, setPersona] = useState<UIBuyerPersona | null>(null)
+  type UIDifficulty = { id: string; name: string; description: string; level: 'easy' | 'medium' | 'hard'; multiplier: number }
+  const [difficulty, setDifficulty] = useState<UIDifficulty | null>(null)
   const [timeLimitMin, setTimeLimitMin] = useState<number>(0) // 0 = Unlimited, 1-60 minutes
 
   console.log('[Setup] Component mounted with selections:', {
@@ -61,8 +63,8 @@ export default function TrainingSetup() {
     const scenario = {
       product,
       persona: persona.name,
-      difficulty,
-      callType,
+      difficulty: difficulty.level,
+      callType: callType || undefined,
       brief: {
         background: persona.background,
         pains: persona.pains,
@@ -133,15 +135,7 @@ export default function TrainingSetup() {
       case 3:
         return (
           <PersonaSelector
-            personas={Object.entries(PERSONAS).map(([key, details]) => ({
-              id: key,
-              name: details.name,
-              description: details.description,
-              icon: details.icon,
-              background: details.background,
-              pains: details.pains,
-              mindset: details.mindset
-            }))}
+            personas={(product ? PRODUCT_PERSONAS[product.id] : [])}
             selectedPersona={persona}
             onSelect={setPersona}
           />
@@ -153,11 +147,11 @@ export default function TrainingSetup() {
               id: key,
               name: details.name,
               description: details.description,
-              level: key,
+              level: key as 'easy' | 'medium' | 'hard',
               multiplier: details.multiplier
-            }))}
-            selectedDifficulty={difficulty}
-            onSelect={setDifficulty}
+            })) as any}
+            selectedDifficulty={difficulty as any}
+            onSelect={setDifficulty as any}
           />
         )
       case 5:
