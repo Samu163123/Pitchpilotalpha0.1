@@ -6,15 +6,18 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { Menu, X, Sparkles } from "lucide-react"
 import { useState } from "react"
 import { HeaderAuth } from "@/components/header-auth"
+import { LanguageSwitcher } from "@/components/language-switcher"
+import { useI18n } from "@/lib/i18n"
 
 export function AppHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { t } = useI18n()
 
   const navigation = [
-    { name: "Training", href: "/train/setup" },
-    { name: "History", href: "/history" },
-    { name: "Challenges", href: "/challenges" },
-    { name: "Profile", href: "/profile" },
+    { name: t("nav_training"), href: "/train/setup" },
+    { name: t("nav_history"), href: "/history" },
+    { name: t("nav_challenges"), href: "/challenges" },
+    { name: t("nav_profile"), href: "/profile" },
   ]
 
   return (
@@ -48,10 +51,11 @@ export function AppHeader() {
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center space-x-4">
             <HeaderAuth />
+            <LanguageSwitcher />
             <ThemeToggle />
             <Link href="/train/setup">
               <Button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl transition-all duration-300 px-6">
-                Start Training
+                {t("start_training")}
               </Button>
             </Link>
           </div>
@@ -59,6 +63,7 @@ export function AppHeader() {
           {/* Mobile Menu Button */}
           <div className="md:hidden flex items-center space-x-2">
             <ThemeToggle />
+            <LanguageSwitcher />
             <Button
               variant="ghost"
               size="sm"
@@ -91,7 +96,7 @@ export function AppHeader() {
                 </div>
                 <Link href="/train/setup" onClick={() => setMobileMenuOpen(false)}>
                   <Button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800">
-                    Start Training
+                    {t("start_training")}
                   </Button>
                 </Link>
               </div>

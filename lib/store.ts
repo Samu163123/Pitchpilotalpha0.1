@@ -221,3 +221,57 @@ export const useSetupSelectionStore = create<SetupSelectionStore>()(
     { name: "pitchpilot-setup-selection" },
   ),
 )
+
+// Language/i18n store
+export type LanguageCode =
+  | "en"
+  | "zh"
+  | "hi"
+  | "es"
+  | "fr"
+  | "ar"
+  | "bn"
+  | "pt"
+  | "ru"
+  | "ur"
+  | "id"
+  | "de"
+  | "ja"
+  | "tr"
+  | "ko"
+  | "vi"
+  | "it"
+  | "fa"
+  | "th"
+  | "sw"
+  | "tl"
+  | "pl"
+  | "uk"
+  | "nl"
+  | "hu"
+  | "cs"
+  | "sv"
+  | "el"
+  | "he"
+  | "fi"
+  | "da"
+  | "no"
+
+interface LanguageStore {
+  language: LanguageCode
+  setLanguage: (lang: LanguageCode) => void
+  hasChosenLanguage: boolean
+  setHasChosenLanguage: (v: boolean) => void
+}
+
+export const useLanguageStore = create<LanguageStore>()(
+  persist(
+    (set) => ({
+      language: "en",
+      setLanguage: (language) => set({ language }),
+      hasChosenLanguage: false,
+      setHasChosenLanguage: (hasChosenLanguage) => set({ hasChosenLanguage }),
+    }),
+    { name: "pitchpilot-language" },
+  ),
+)

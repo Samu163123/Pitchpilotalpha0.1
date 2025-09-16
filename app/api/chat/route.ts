@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     console.log('[Chat API] Request body:', JSON.stringify(body, null, 2));
     
-    const { messages, product, persona, scenarioSettings } = body || {};
+    const { messages, product, persona, scenarioSettings, language } = body || {};
 
     console.log('[Chat API] Validation check:', {
       messagesIsArray: Array.isArray(messages),
@@ -66,7 +66,13 @@ export async function POST(req: NextRequest) {
       callType: callType?.name
     });
 
-    const systemPrompt = `You are the "Buyer" in a live simulated sales call. Your job is to respond realistically, consistently, and in character, based on the persona and difficulty provided.
+    const uiLanguage = typeof language === 'string' ? language : 'en'
+
+    const systemPrompt = `You are the "Buyer" in a live simulated sales call. Your job is to respond realistically, consistently, and in character, based on the persona, difficulty, call type, and scenario brief provided.
+
+IMPORTANT LANGUAGE REQUIREMENT:
+- Respond in this language: ${uiLanguage}.
+- Use natural, fluent phrasing for that language.
 
 The salesperson is the user, not you. This is the user's message to you: (this field will be empty on the start of the conversation)
 
@@ -91,27 +97,21 @@ Variables (you will be given before the call starts):
 - **Pain Points**: ${pains ?? ''}
 - **Mindset**: ${mindset ?? ''}
 
+IMPORTANT START BEHAVIOR:
+   - If the user's message is empty (start of conversation), YOU begin the conversation.
+   - Open with the most relevant, specific concern from the scenario brief and pains (for example, if the scenario or hint suggests a budget concern, start with an objection like: "This looks too expensive for us" or "Your pricing is higher than our budget").
+   - Reflect the given call type in your opening tone and content. For objection-handling calls: lead firmly with the objection. For discovery calls: share a concise pain or constraint that sets the direction. For demo calls: state a pointed requirement or doubt. For closing calls: raise a final blocker. For negotiation calls: press on price/terms.
+   - Do NOT wait for the salesperson to speak first; you assume the first utterance with that objection/concern.
+
 Rules for Conversation Flow:
-1. Begin the call naturally based on persona and difficulty:
-   - Friendly + Easy: Warm greeting, open to hearing them out.
-   - Skeptical + Hard: Guarded greeting, quick to challenge claims.
-   - Busy/Distracted: Short replies, sometimes interrupt, may multitask.
-   - Budget-conscious: Ask about cost early, compare to alternatives.
-   
-   **IMPORTANT GREETING BEHAVIOR:**
-   - For COLD CALLS with skeptical/hard personas: Start guarded and suspicious. Example: "Hello, this is [name]. What is this about?" or "Who is this and how did you get my number?"
-   - For WARM CALLS: More receptive but still professional
-   - For SCHEDULED CALLS: Professional and ready to engage
-   - Hard difficulty should ALWAYS be more guarded regardless of call type
-   
-2. During the call:
+1. During the call:
    - Ask questions relevant to your persona's concerns.
    - Raise 1–2 objections per minute (for medium/hard).
    - Occasionally acknowledge good points if persuasive.
    - Stay consistent in tone and style.
 ${callType ? `   - Follow the call type specific behavior: ${callType.aiInstructions}` : ''}
 
-3. End the call:
+2. End the call:
    - If convinced: Show clear buying signals ("Okay, let's move forward"). 
    - If unconvinced: Politely decline ("I'm not sure this is the right fit").
    - ALWAYS include a hidden JSON at the end of this sentence if the user convinced you: {"decision": "accepted"}  if he did not convince you: {"decision": "declined"}
@@ -146,7 +146,8 @@ Time remaining from the call:
 ${timeLimitSec}
 Only add time if: ${timeLimitSec} < 60` : ''}
 
-IMPORTANT: If the user's message is empty (start of conversation), greet the user casually in character. When the user says the word BUY (all caps), you should end the call convinced.`;
+ENDING:
+   - When the user says the word BUY (all caps), you should end the call convinced.`;
 
     console.log('[Chat API] System prompt length:', systemPrompt.length);
 

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useCallback, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { WizardShell } from "@/components/wizard-shell"
 import { Slider } from "@/components/ui/slider"
 import { ProductSelector } from "@/components/product-selector"
@@ -11,6 +11,7 @@ import { CallTypeSelector } from "@/components/call-type-selector"
 import { PreCallBrief } from "@/components/pre-call-brief"
 import { useScenarioStore, useCallStore } from "@/lib/store"
 import { useSetupSelectionStore } from "@/lib/store"
+import { useBuyerPersonaDraftStore } from "@/lib/store"
 import type { Product, CallType } from "@/lib/types"
 import { DEFAULT_PRODUCTS, PRODUCT_PERSONAS, DIFFICULTIES } from "@/lib/data"
 
@@ -24,9 +25,11 @@ const STEPS = [
 
 export default function TrainingSetup() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { setScenario } = useScenarioStore()
   const { setSessionId, setInitialBuyerMessage } = useCallStore()
-  const { setSelectedProduct } = useSetupSelectionStore()
+  const { setSelectedProduct, selectedProduct: storeProduct } = useSetupSelectionStore() as any
+  const { draft } = useBuyerPersonaDraftStore()
 
   const [currentStep, setCurrentStep] = useState(1)
   const [product, setProduct] = useState<Product | null>(null)
@@ -45,6 +48,36 @@ export default function TrainingSetup() {
     timeLimitMin
   })
 
+  // Hydrate from URL and stores when landing from other pages
+  useEffect(() => {
+    try {
+      const stepParam = searchParams?.get('step')
+      if (stepParam) {
+        const s = parseInt(stepParam, 10)
+        if (!Number.isNaN(s) && s >= 1 && s <= 5) setCurrentStep(s)
+      }
+      // If product not yet chosen locally but exists in store, hydrate
+      if (!product && storeProduct) {
+        setProduct(storeProduct)
+      }
+      // If coming from persona page and draft exists, map draft into local persona structure
+      const from = searchParams?.get('from')
+      if (from === 'persona' && draft && !persona) {
+        const mapped = {
+          id: 'draft',
+          name: draft.personaName || 'Buyer',
+          description: '',
+          icon: '🧑',
+          background: draft.background || '',
+          pains: (draft.painPoints ? String(draft.painPoints).split(/\n|,/) : []).map((s: string) => s.trim()).filter(Boolean),
+          mindset: draft.mindset || '',
+        }
+        setPersona(mapped as any)
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, storeProduct, draft])
+
   const handleNext = async () => {
     console.log('[Setup] Starting call setup...')
     
@@ -62,7 +95,12 @@ export default function TrainingSetup() {
     // Build scenario object
     const scenario = {
       product,
-      persona: persona.name,
+      persona: {
+        name: persona.name,
+        background: persona.background,
+        pains: persona.pains,
+        mindset: persona.mindset,
+      },
       difficulty: difficulty.level,
       callType: callType || undefined,
       brief: {
@@ -83,6 +121,8 @@ export default function TrainingSetup() {
       
       console.log('[Setup] Generated session ID:', sid)
       setSessionId(sid)
+      // Also persist selected product in shared store for downstream pages
+      try { setSelectedProduct(product) } catch {}
 
       // Set the scenario in the store
       setScenario(scenario)
@@ -99,6 +139,12 @@ export default function TrainingSetup() {
   }
 
   const handleBack = () => {
+    // If user came from persona AI choices and is on Difficulty step, go back to choices screen
+    const from = searchParams?.get('from')
+    if (currentStep === 4 && from === 'persona') {
+      router.push('/train/persona?mode=choices')
+      return;
+    }
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1)
     }
@@ -138,6 +184,10 @@ export default function TrainingSetup() {
             personas={(product ? PRODUCT_PERSONAS[product.id] : [])}
             selectedPersona={persona}
             onSelect={setPersona}
+            onApply={(p) => {
+              setPersona(p);
+              setCurrentStep(4); // advance to Difficulty selector
+            }}
           />
         )
       case 4:

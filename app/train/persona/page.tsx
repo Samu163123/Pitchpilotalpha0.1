@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -12,9 +12,11 @@ import { useSetupSelectionStore } from "@/lib/store"
 import { useBuyerPersonaDraftStore } from "@/lib/store"
 import { PersonaGenerateRequest, generateBuyerPersona } from "@/lib/webhook"
 import { useToast } from "@/hooks/use-toast"
+import { Switch } from "@/components/ui/switch"
+import { getSupabaseBrowserClient } from "@/lib/supabase/client"
 import Link from "next/link"
 
-const REVIEW_ROUTE = "/train/review" // TODO: adjust if your review page path differs
+const NEXT_ROUTE = "/train/setup?step=4&from=persona"
 
 function PersonaPreviewCard({ personaName, background, demographics, psychographics, painPoints, mindset, quote, marketType }) {
   const renderList = (text, icon) => {
@@ -58,9 +60,11 @@ function PersonaPreviewCard({ personaName, background, demographics, psychograph
 
 export default function BuyerPersonaPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { selectedProduct } = useSetupSelectionStore()
   const { draft, setDraft } = useBuyerPersonaDraftStore()
   const { toast } = useToast()
+  const supabase = getSupabaseBrowserClient()
 
   const [personaName, setPersonaName] = useState(draft?.personaName ?? "")
   const [background, setBackground] = useState(draft?.background ?? "")
@@ -76,8 +80,27 @@ export default function BuyerPersonaPage() {
   const [options, setOptions] = useState<any[] | null>(null)
   const [edited, setEdited] = useState<any[] | null>(null)
   const [editMode, setEditMode] = useState<Record<number, boolean>>({})
+  const [saveOnContinue, setSaveOnContinue] = useState(true)
 
   useEffect(() => { if (!selectedProduct) router.replace("/train/setup") }, [selectedProduct, router])
+
+  // If navigated back from setup with mode=choices, restore the last AI options
+  useEffect(() => {
+    const mode = searchParams?.get('mode')
+    if (mode === 'choices') {
+      try {
+        const raw = localStorage.getItem('personaOptions')
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setOptions(parsed)
+            try { setEdited(JSON.parse(JSON.stringify(parsed))) } catch { setEdited(parsed.map((x: any) => ({ ...x }))) }
+            setEditMode({})
+          }
+        }
+      } catch {}
+    }
+  }, [searchParams])
 
   const generateFields = useMemo(() => (Object.keys(gen) as Array<keyof typeof gen>).filter((k) => gen[k]) as PersonaGenerateRequest["generateFields"], [gen])
 
@@ -215,6 +238,8 @@ export default function BuyerPersonaPage() {
         } catch {
           setEdited(personas.map(x => ({ ...x })))
         }
+        // Persist choices so we can come back to choices screen later
+        try { localStorage.setItem('personaOptions', JSON.stringify(personas)); } catch {}
         setEditMode({})
         // Do not auto-apply; user will pick one
         toast({ title: "Personas generated", description: `Received ${personas.length} option(s). Choose one to apply.` })
@@ -234,9 +259,84 @@ export default function BuyerPersonaPage() {
     router.push("/train/setup")
   }
 
-  const onContinueToReview = () => {
+  type SavePayload = { name: string; background: string; pains?: string; mindset?: string; description?: string; icon?: string; demographics?: string; psychographics?: string; quote?: string }
+  const savePersonaRecord = async (data: SavePayload): Promise<{ ok: boolean; duplicate?: boolean }> => {
+    try {
+      // Client-side dedupe by name+background (case-insensitive, trimmed)
+      const key = `${(data.name||'').trim().toLowerCase()}|${(data.background||'').trim().toLowerCase()}`
+      try {
+        const raw = localStorage.getItem('savedPersonas')
+        const parsed = raw ? JSON.parse(raw) : []
+        if (Array.isArray(parsed)) {
+          const exists = parsed.some((sp:any) => `${(sp.name||'').trim().toLowerCase()}|${(sp.background||'').trim().toLowerCase()}` === key)
+          if (exists) return { ok: false, duplicate: true }
+        }
+      } catch {}
+      const { data: userData } = await supabase.auth.getUser()
+      const user = userData?.user
+      if (!user) {
+        const item = {
+          id: String(Date.now()),
+          name: data.name,
+          description: data.description || '',
+          icon: data.icon || '🧑',
+          background: data.background,
+          pains: (data.pains ? String(data.pains).split(/\n|,/).map(s=>s.trim()).filter(Boolean) : []),
+          mindset: data.mindset || '',
+        }
+        try {
+          const raw = localStorage.getItem('savedPersonas')
+          const parsed = raw ? JSON.parse(raw) : []
+          const next = Array.isArray(parsed) ? [item, ...parsed] : [item]
+          localStorage.setItem('savedPersonas', JSON.stringify(next))
+        } catch {}
+        return { ok: true }
+      }
+      await supabase.from('saved_personas').insert({
+        user_id: user.id,
+        name: data.name,
+        description: data.description || '',
+        icon: data.icon || '🧑',
+        background: data.background,
+        pains: (data.pains ? String(data.pains).split(/\n|,/).map((s:string)=>s.trim()).filter(Boolean) : []),
+        mindset: data.mindset || '',
+      })
+      return { ok: true }
+    } catch {
+      // fallback to local
+      try {
+        const item = {
+          id: String(Date.now()),
+          name: data.name,
+          description: data.description || '',
+          icon: data.icon || '🧑',
+          background: data.background,
+          pains: (data.pains ? String(data.pains).split(/\n|,/).map((s:string)=>s.trim()).filter(Boolean) : []),
+          mindset: data.mindset || '',
+        }
+        const raw = localStorage.getItem('savedPersonas')
+        const parsed = raw ? JSON.parse(raw) : []
+        const next = Array.isArray(parsed) ? [item, ...parsed] : [item]
+        localStorage.setItem('savedPersonas', JSON.stringify(next))
+        return { ok: true }
+      } catch {}
+    }
+    return { ok: false }
+  }
+
+  const onContinueToReview = async () => {
     setDraft({ personaName, background, demographics: demographics || undefined, psychographics: psychographics || undefined, painPoints, mindset, quote: quote || undefined })
-    router.push(REVIEW_ROUTE)
+    if (saveOnContinue) {
+      const res = await savePersonaRecord({ name: personaName || 'Buyer', background, pains: painPoints, mindset })
+      if (res.duplicate) {
+        toast({ title: 'Already saved', description: 'This persona appears to be already in Saved Personas.', variant: 'default' })
+      } else if (res.ok) {
+        toast({ title: 'Persona saved', description: 'Saved to your Saved Personas.' })
+      } else {
+        toast({ title: 'Save failed', description: 'Could not save persona. It will still be used for this session.', variant: 'destructive' })
+      }
+    }
+    router.push(NEXT_ROUTE)
   }
 
   const handleToggleEdit = (idx: number) => setEditMode(m => ({ ...m, [idx]: !m[idx] }))
@@ -262,8 +362,10 @@ export default function BuyerPersonaPage() {
         quote: toStringVal(picked.quote) || undefined,
       })
       applyPersona(picked)
-      toast({ title: "Applied", description: `Option ${idx + 1} applied to selected fields.` })
-      router.push(REVIEW_ROUTE)
+      // Switch back to the form so the user can edit
+      setOptions(null)
+      setEdited(null)
+      toast({ title: "Applied", description: `Option ${idx + 1} applied to the form. You can edit before continuing.` })
     }
   }
 
@@ -415,8 +517,28 @@ export default function BuyerPersonaPage() {
                     quote={e.quote}
                     marketType={marketType}
                   />
-                  <div className="mt-4 flex justify-center">
-                     <Button onClick={() => handleUse(idx)} className="w-full bg-gradient-to-r from-primary to-secondary">Apply this persona</Button>
+                  <div className="mt-6 grid grid-cols-2 gap-2 relative z-10">
+                    <Button onClick={() => handleUse(idx)} className="w-full bg-gradient-to-r from-primary to-secondary">Apply</Button>
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        const res = await savePersonaRecord({
+                          name: toStringVal(e.personaName) || 'Buyer',
+                          background: toStringVal(e.background) || '',
+                          pains: toStringVal(e.painPoints) || '',
+                          mindset: toStringVal(e.mindset) || ''
+                        })
+                        if (res.duplicate) {
+                          toast({ title: 'Already saved', description: 'This persona appears to be already in Saved Personas.' })
+                        } else if (res.ok) {
+                          toast({ title: 'Saved', description: 'Persona saved to your Saved Personas.' })
+                        } else {
+                          toast({ title: 'Save failed', description: 'Could not save persona.', variant: 'destructive' })
+                        }
+                      }}
+                    >
+                      Save
+                    </Button>
                   </div>
                   <div className="mt-2 flex justify-center">
                     <Link href="/train/chat" className="w-full">

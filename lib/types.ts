@@ -41,7 +41,7 @@ export interface DifficultyDetails {
 }
 
 export interface Product {
-  id: string
+  id?: string
   name: string
   description: string
 }
@@ -109,4 +109,43 @@ export interface CallMetrics {
   questionCount: number
   closesCount: number
   interruptionCount: number
+}
+
+export type ChallengeType =
+  | "objection_handling"
+  | "discovery"
+  | "demo"
+  | "closing"
+  | "negotiation"
+
+export interface ChallengeItem {
+  id: string
+  type: ChallengeType
+  title: string
+  description: string
+  difficulty: Difficulty
+  personaHint?: string
+  product: Product
+  timeLimit?: number | null
+  points: number
+  callType?: CallType
+}
+
+export interface UserPreferences {
+  role?: string
+  seniority_years?: string
+  industry?: string
+  offering?: string
+  audience_role?: string
+  company_size?: string
+  training_goal?: string
+  start_scenario?: string
+  target_objections?: string[]
+  tone?: string
+  feedback_style?: string
+  value_props?: string
+  proof_points?: string[]
+  constraints?: string[]
+  accessibility?: { captions?: boolean; ttsPacing?: string } | null
+  consent?: { recordings?: boolean; notes?: boolean; timestamp?: string } | null
 }

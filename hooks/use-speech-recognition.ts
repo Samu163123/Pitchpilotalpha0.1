@@ -126,7 +126,8 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
       const data = await res.json();
       const text = (data && (data.transcript || data.text)) || '';
       console.log('[STT] Response', data);
-      if (text) setTranscript(prev => (prev ? `${prev} ${text}` : text));
+      // Emit only the latest chunk; the consumer decides how to append
+      if (text) setTranscript(text);
     } catch (e) {
       console.error('Upload/STT error:', e);
       if (!error) setError('Speech-to-text failed. See console for details.');
@@ -185,13 +186,7 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
       source.connect(node);
       node.connect(audioCtx.destination);
 
-      // DEBUG: auto-stop after 4s to validate end-to-end pipeline
-      setTimeout(() => {
-        if (isListeningRef.current) {
-          console.log('[STT] Auto-stopping after 4s (debug)');
-          stopListening();
-        }
-      }, 4000);
+      // Recording continues until user stops
 
     } catch (err) {
       setIsListening(false);

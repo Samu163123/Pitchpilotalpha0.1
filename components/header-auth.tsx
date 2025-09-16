@@ -5,11 +5,13 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { getSupabaseBrowserClient } from "@/lib/supabase/client"
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
+import { useI18n } from "@/lib/i18n"
 
 export function HeaderAuth() {
   const supabase = getSupabaseBrowserClient()
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const { t } = useI18n()
 
   useEffect(() => {
     const sub = supabase.auth.onAuthStateChange(async (_e: AuthChangeEvent, session: Session | null) => {
@@ -32,9 +34,9 @@ export function HeaderAuth() {
   if (userEmail) {
     return (
       <div className="flex items-center space-x-3">
-        <span className="text-sm text-muted-foreground">Logged in as {userEmail}</span>
+        <span className="text-sm text-muted-foreground">{t("logged_in_as")} {userEmail}</span>
         <Button variant="outline" size="sm" onClick={signOut} disabled={loading}>
-          {loading ? "..." : "Sign out"}
+          {loading ? "..." : t("logout")}
         </Button>
       </div>
     )
@@ -42,7 +44,7 @@ export function HeaderAuth() {
 
   return (
     <Link href="/sign-in">
-      <Button variant="outline">Log in</Button>
+      <Button variant="outline">{t("login")}</Button>
     </Link>
   )
 }

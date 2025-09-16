@@ -3,20 +3,23 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Clock, Trophy, CheckCircle, Target } from "lucide-react"
-import type { Persona, Difficulty, Product } from "@/lib/types"
+import { Clock, Trophy, CheckCircle, Target, User } from "lucide-react"
+import type { Difficulty, Product } from "@/lib/types"
 import { PERSONAS } from "@/lib/data"
+
+type Persona = keyof typeof PERSONAS
 
 interface Challenge {
   id: string
   title: string
   description: string
   difficulty: Difficulty
-  persona: Persona
+  persona?: Persona
+  personaHint?: string
   product: Product
   timeLimit: number
   points: number
-  completed: boolean
+  completed?: boolean
 }
 
 interface ChallengeCardProps {
@@ -25,7 +28,7 @@ interface ChallengeCardProps {
 }
 
 export function ChallengeCard({ challenge, onStart }: ChallengeCardProps) {
-  const personaData = PERSONAS[challenge.persona]
+  const personaData = challenge.persona ? PERSONAS[challenge.persona] : null
 
   const getDifficultyColor = (difficulty: Difficulty) => {
     switch (difficulty) {
@@ -63,13 +66,22 @@ export function ChallengeCard({ challenge, onStart }: ChallengeCardProps) {
 
         <div className="flex flex-wrap gap-2">
           <Badge className={getDifficultyColor(challenge.difficulty)}>{challenge.difficulty}</Badge>
-          <Badge variant="outline">
-            {personaData.icon} {personaData.name}
-          </Badge>
-          <Badge variant="outline" className="flex items-center space-x-1">
-            <Clock className="w-3 h-3" />
-            <span>{formatTime(challenge.timeLimit)}</span>
-          </Badge>
+          {personaData ? (
+            <Badge variant="outline">
+              {personaData.icon} {personaData.name}
+            </Badge>
+          ) : challenge.personaHint ? (
+            <Badge variant="outline" className="flex items-center gap-1">
+              <User className="w-3 h-3" />
+              <span className="truncate max-w-[220px]" title={challenge.personaHint}>{challenge.personaHint}</span>
+            </Badge>
+          ) : null}
+          {typeof challenge.timeLimit === 'number' && challenge.timeLimit != null ? (
+            <Badge variant="outline" className="flex items-center space-x-1">
+              <Clock className="w-3 h-3" />
+              <span>{formatTime(challenge.timeLimit)}</span>
+            </Badge>
+          ) : null}
           <Badge variant="outline" className="flex items-center space-x-1">
             <Trophy className="w-3 h-3" />
             <span>{challenge.points} pts</span>
@@ -92,7 +104,7 @@ export function ChallengeCard({ challenge, onStart }: ChallengeCardProps) {
 
             <Button
               onClick={onStart}
-              disabled={challenge.completed}
+              disabled={!!challenge.completed}
               variant={challenge.completed ? "outline" : "default"}
             >
               {challenge.completed ? "Completed" : "Start Challenge"}

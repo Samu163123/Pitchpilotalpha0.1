@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/app-header"
 import { AppFooter } from "@/components/app-footer"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { LanguageOnboarding } from "@/components/language-onboarding"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -31,6 +32,8 @@ export default function RootLayout({
             <AppFooter />
           </div>
           <Toaster />
+          {/* First-time language selection modal (client component) */}
+          <LanguageOnboarding />
         </ThemeProvider>
       </body>
     </html>
